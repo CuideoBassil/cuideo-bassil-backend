@@ -2,7 +2,7 @@ const bcrypt = require("bcryptjs");
 const dayjs = require("dayjs");
 const utc = require("dayjs/plugin/utc");
 dayjs.extend(utc);
-const jwt = require('jsonwebtoken');
+const jwt = require("jsonwebtoken");
 const { tokenForVerify } = require("../config/auth");
 const Admin = require("../model/Admin");
 const { generateToken } = require("../utils/token");
@@ -10,7 +10,7 @@ const { sendEmail } = require("../config/email");
 const { secret } = require("../config/secret");
 
 // register
-const registerAdmin = async (req, res,next) => {
+const registerAdmin = async (req, res, next) => {
   try {
     const isAdded = await Admin.findOne({ email: req.body.email });
     if (isAdded) {
@@ -36,11 +36,11 @@ const registerAdmin = async (req, res,next) => {
       });
     }
   } catch (err) {
-    next(err)
+    next(err);
   }
 };
 // login admin
-const loginAdmin = async (req, res,next) => {
+const loginAdmin = async (req, res, next) => {
   // console.log(req.body)
   try {
     const admin = await Admin.findOne({ email: req.body.email });
@@ -62,11 +62,11 @@ const loginAdmin = async (req, res,next) => {
       });
     }
   } catch (err) {
-    next(err)
+    next(err);
   }
 };
 // forget password
-const forgetPassword = async (req, res,next) => {
+const forgetPassword = async (req, res, next) => {
   try {
     const { email } = req.body;
     // console.log('email--->',email)
@@ -82,15 +82,15 @@ const forgetPassword = async (req, res,next) => {
         to: `${email}`,
         subject: "Password Reset",
         html: `<h2>Hello ${email}</h2>
-        <p>A request has been received to change the password for your <strong>Shofy</strong> account </p>
+        <p>A request has been received to change the password for your <strong>Cuideo Bassil Home</strong> account </p>
 
         <p>This link will expire in <strong> 10 minute</strong>.</p>
 
         <p style="margin-bottom:20px;">Click this link for reset your password</p>
 
-        <a href=${secret.admin_url}/forget-password/${token} style="background:#0989FF;color:white;border:1px solid #0989FF; padding: 10px 15px; border-radius: 4px; text-decoration:none;">Reset Password</a>
+        <a href=${secret.admin_url}/forgot-password/${token} style="background:#0989FF;color:white;border:1px solid #0989FF; padding: 10px 15px; border-radius: 4px; text-decoration:none;">Reset Password</a>
 
-        <p style="margin-top: 35px;">If you did not initiate this request, please contact us immediately at support@shofy.com</p>
+        <p style="margin-top: 35px;">If you did not initiate this request, please contact us immediately at  cuideobassilhome2025@gmail.com</p>
 
         <p style="margin-bottom:0px;">Thank you</p>
         <strong>Shofy Team</strong>
@@ -105,11 +105,11 @@ const forgetPassword = async (req, res,next) => {
       sendEmail(body, res, message);
     }
   } catch (error) {
-    next(error)
+    next(error);
   }
 };
 // confirm-forget-password
-const confirmAdminForgetPass = async (req, res,next) => {
+const confirmAdminForgetPass = async (req, res, next) => {
   try {
     const { token, password } = req.body;
     const admin = await Admin.findOne({ confirmationToken: token });
@@ -145,31 +145,30 @@ const confirmAdminForgetPass = async (req, res,next) => {
       });
     }
   } catch (error) {
-    next(error)
+    next(error);
   }
 };
 
 // change password
-const changePassword = async (req,res,next) => {
+const changePassword = async (req, res, next) => {
   try {
-    const {email,oldPass,newPass} = req.body || {};
+    const { email, oldPass, newPass } = req.body || {};
     const admin = await Admin.findOne({ email: email });
     // Check if the admin exists
     if (!admin) {
       return res.status(404).json({ message: "Admin not found" });
     }
-    if(!bcrypt.compareSync(oldPass, admin.password)){
+    if (!bcrypt.compareSync(oldPass, admin.password)) {
       return res.status(401).json({ message: "Incorrect current password" });
-    }
-    else {
+    } else {
       const hashedPassword = bcrypt.hashSync(newPass);
-      await Admin.updateOne({email:email},{password:hashedPassword})
+      await Admin.updateOne({ email: email }, { password: hashedPassword });
       res.status(200).json({ message: "Password changed successfully" });
     }
   } catch (error) {
-    next(error)
+    next(error);
   }
-}
+};
 // reset Password
 const resetPassword = async (req, res) => {
   const token = req.body.token;
@@ -177,7 +176,7 @@ const resetPassword = async (req, res) => {
   const staff = await Admin.findOne({ email: email });
 
   if (token) {
-    jwt.verify(token,secret.jwt_secret_for_verify,(err, decoded) => {
+    jwt.verify(token, secret.jwt_secret_for_verify, (err, decoded) => {
       if (err) {
         return res.status(500).send({
           message: "Token expired, please try again!",
@@ -193,7 +192,7 @@ const resetPassword = async (req, res) => {
   }
 };
 // add staff
-const addStaff = async (req, res,next) => {
+const addStaff = async (req, res, next) => {
   try {
     const isAdded = await Admin.findOne({ email: req.body.email });
     if (isAdded) {
@@ -202,7 +201,7 @@ const addStaff = async (req, res,next) => {
       });
     } else {
       const newStaff = new Admin({
-        name:req.body.name,
+        name: req.body.name,
         email: req.body.email,
         password: bcrypt.hashSync(req.body.password),
         phone: req.body.phone,
@@ -216,30 +215,30 @@ const addStaff = async (req, res,next) => {
       });
     }
   } catch (err) {
-    next(err)
+    next(err);
   }
 };
 // get all staff
-const getAllStaff = async (req, res,next) => {
+const getAllStaff = async (req, res, next) => {
   try {
     const admins = await Admin.find({}).sort({ _id: -1 });
     res.status(200).json({
-      status:true,
-      message:'Staff get successfully',
-      data:admins
+      status: true,
+      message: "Staff get successfully",
+      data: admins,
     });
   } catch (err) {
-    next(err)
+    next(err);
   }
 };
 // getStaffById
-const getStaffById = async (req, res,next) => {
+const getStaffById = async (req, res, next) => {
   // console.log('getStaffById',req.params.id)
   try {
     const admin = await Admin.findById(req.params.id);
     res.send(admin);
   } catch (err) {
-    next(err)
+    next(err);
   }
 };
 // updateStaff
@@ -254,9 +253,9 @@ const updateStaff = async (req, res) => {
       admin.joiningData = req.body.joiningDate;
       admin.image = req.body.image;
       admin.password =
-      req.body.password !== undefined
-        ? bcrypt.hashSync(req.body.password)
-        : admin.password;
+        req.body.password !== undefined
+          ? bcrypt.hashSync(req.body.password)
+          : admin.password;
       const updatedAdmin = await admin.save();
       const token = generateToken(updatedAdmin);
       res.send({
@@ -280,14 +279,14 @@ const updateStaff = async (req, res) => {
   }
 };
 // deleteStaff
-const deleteStaff = async (req, res,next) => {
+const deleteStaff = async (req, res, next) => {
   try {
     await Admin.findByIdAndDelete(req.params.id);
     res.status(200).json({
-      message:'Admin Deleted Successfully',
+      message: "Admin Deleted Successfully",
     });
   } catch (err) {
-    next(err)
+    next(err);
   }
 };
 
