@@ -191,14 +191,17 @@ module.exports.updateQuantitiesService = async (updates) => {
     if (!update.sku || typeof update.quantity !== "number") {
       throw new Error("Each object must contain sku and quantity.");
     }
-
-    const product = await Product.findOne({ where: { sku: update.sku } });
-
-    if (!product) {
-      throw new Error(`Product with SKU ${update.sku} not found.`);
+    const product = await Product.findOne({ sku: update.sku });
+    if (product) {
+      await Product.updateOne(
+        { _id: product.id },
+        {
+          $set: {
+            quantity: update.quantity,
+            status: update.quantity > 0 ? "in-stock" : "out-of-stock",
+          },
+        }
+      );
     }
-
-    // Update the product quantity
-    await product.update({ quantity: update.quantity });
   }
 };
