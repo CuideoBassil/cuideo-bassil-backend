@@ -2,8 +2,7 @@ const fs = require("fs");
 const { cloudinaryServices } = require("../services/cloudinary.service");
 
 // add image
-const saveImageCloudinary = async (req, res,next) => {
-  // console.log(req.file)
+const saveImageCloudinary = async (req, res, next) => {
   try {
     const result = await cloudinaryServices.cloudinaryImageUpload(
       req.file.buffer
@@ -11,11 +10,10 @@ const saveImageCloudinary = async (req, res,next) => {
     res.status(200).json({
       success: true,
       message: "image uploaded successfully",
-      data:{url:result.secure_url,id:result.public_id},
+      data: { url: result.secure_url, id: result.public_id },
     });
   } catch (err) {
-    console.log(err);
-    next(err)
+    next(err);
   }
 };
 
@@ -52,7 +50,6 @@ const addMultipleImageCloudinary = async (req, res) => {
           : [],
     });
   } catch (err) {
-    console.log(err);
     res.status(500).send({
       success: false,
       message: "Failed to upload image",

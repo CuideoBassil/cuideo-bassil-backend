@@ -7,10 +7,7 @@ exports.createProductService = async (data) => {
   const product = await Product.create(data);
   const { _id: productId, brand, category } = product;
   //update Brand
-  await Brand.updateOne(
-    { _id: brand.id },
-    { $push: { products: productId } }
-  );
+  await Brand.updateOne({ _id: brand.id }, { $push: { products: productId } });
   //Category Brand
   await Category.updateOne(
     { _id: category.id },
@@ -129,7 +126,6 @@ exports.getRelatedProductService = async (productId) => {
 
 // update a product
 exports.updateProductService = async (id, currProduct) => {
-  // console.log('currProduct',currProduct)
   const product = await Product.findById(id);
   if (product) {
     product.title = currProduct.title;
@@ -161,31 +157,48 @@ exports.updateProductService = async (id, currProduct) => {
   return product;
 };
 
-
-
 // get Reviews Products
 exports.getReviewsProducts = async () => {
   const result = await Product.find({
     reviews: { $exists: true, $ne: [] },
-  })
-    .populate({
-      path: "reviews",
-      populate: { path: "userId", select: "name email imageURL" },
-    });
+  }).populate({
+    path: "reviews",
+    populate: { path: "userId", select: "name email imageURL" },
+  });
 
-  const products = result.filter(p => p.reviews.length > 0)
+  const products = result.filter((p) => p.reviews.length > 0);
 
   return products;
 };
 
 // get Reviews Products
 exports.getStockOutProducts = async () => {
-  const result = await Product.find({ status: "out-of-stock" }).sort({ createdAt: -1 })
+  const result = await Product.find({ status: "out-of-stock" }).sort({
+    createdAt: -1,
+  });
   return result;
 };
 
 // get Reviews Products
 exports.deleteProduct = async (id) => {
-  const result = await Product.findByIdAndDelete(id)
+  const result = await Product.findByIdAndDelete(id);
   return result;
+};
+
+// update products quatities
+module.exports.updateQuantitiesService = async (updates) => {
+  for (const update of updates) {
+    if (!update.sku || typeof update.quantity !== "number") {
+      throw new Error("Each object must contain sku and quantity.");
+    }
+
+    const product = await Product.findOne({ where: { sku: update.sku } });
+
+    if (!product) {
+      throw new Error(`Product with SKU ${update.sku} not found.`);
+    }
+
+    // Update the product quantity
+    await product.update({ quantity: update.quantity });
+  }
 };
