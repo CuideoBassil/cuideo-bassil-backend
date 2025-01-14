@@ -30,6 +30,6 @@ router.get("/:type", productController.getProductsByType);
 // get Products ByType
 router.delete("/:id", productController.deleteProduct);
 // update product quantities
-router.patch("/update-quantities", featuredController.updateQuantities);
+router.patch("/update-quantities", productController.updateQuantities);
 
 module.exports = router;
