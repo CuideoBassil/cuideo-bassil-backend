@@ -19,7 +19,7 @@ const orderRoutes = require("./routes/order.routes");
 const couponRoutes = require("./routes/coupon.routes");
 const reviewRoutes = require("./routes/review.routes");
 const adminRoutes = require("./routes/admin.routes");
-const featuredRoutes = require("./routes/featured.route");
+const featuredRoutes = require("./routes/featured.routes");
 // const uploadRouter = require('./routes/uploadFile.route');
 const cloudinaryRoutes = require("./routes/cloudinary.routes");
 
