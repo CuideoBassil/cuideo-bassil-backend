@@ -1,6 +1,4 @@
 const mongoose = require("mongoose");
-const { ObjectId } = mongoose.Schema.Types;
-// schema design
 const validator = require("validator");
 
 const featuredSchema = mongoose.Schema(
@@ -28,18 +26,19 @@ const featuredSchema = mongoose.Schema(
     },
     price: {
       type: Number,
-      required: fasle,
+      required: false,
       min: [0, "Product price can't be negative"],
     },
     discounted: {
       type: Number,
+      required: false,
       min: [0, "Product discounted price can't be negative"],
     },
     section: {
       type: Number,
       required: true,
-      default: "1",
-      enum: ["1", "2", "3"],
+      default: 1,
+      enum: [1, 2, 3],
     },
   },
   {
