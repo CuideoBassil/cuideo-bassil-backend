@@ -11,6 +11,8 @@ router.post("/add-all", featuredController.addAllFeatured);
 router.get("/active", featuredController.getActiveFeatured);
 // get all Featured
 router.get("/all", featuredController.getAllFeatured);
+// get Featured by section
+router.get("/:section", featuredController.getFeaturedBySection);
 // delete featured
 router.delete("/delete/:id", featuredController.deleteFeatured);
 // get single

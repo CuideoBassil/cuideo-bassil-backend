@@ -28,7 +28,7 @@ exports.addAllFeatured = async (req, res, next) => {
   }
 };
 
-// get active Featured
+// get all Featured
 exports.getAllFeatured = async (req, res, next) => {
   try {
     const result = await Featured.find({}).sort({ _id: -1 });
@@ -39,6 +39,19 @@ exports.getAllFeatured = async (req, res, next) => {
     });
   } catch (err) {
     next(err);
+  }
+};
+
+// get Featured by section
+exports.getFeaturedBySection = async (req, res, next) => {
+  try {
+    const result = await featuredService.getFeaturedBySectionService(req);
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    next(error);
   }
 };
 

@@ -16,9 +16,20 @@ exports.addAllFeaturedService = async (data) => {
 
 // get all Featured service
 exports.getFeaturedService = async () => {
-  const featured = await Featured.find({ status: "active" }).populate(
-    "products"
-  );
+  const featured = await Featured.find().populate("products");
+  return featured;
+};
+
+// get Featured by section service
+// exports.getFeaturedBySectionService = async (section) => {
+//   const featured = await Featured.find({ section });
+//   return featured;
+// };
+
+exports.getFeaturedBySectionService = async (req) => {
+  const section = req.params.section;
+  let featured = await Featured.find({ section });
+
   return featured;
 };
 
@@ -28,7 +39,7 @@ exports.deleteFeaturedService = async (id) => {
   return featured;
 };
 
-// update category
+// update Featured
 exports.updateFeaturedService = async (id, payload) => {
   const isExist = await Featured.findOne({ _id: id });
 
@@ -42,7 +53,7 @@ exports.updateFeaturedService = async (id, payload) => {
   return result;
 };
 
-// get single category
+// get single Featured
 exports.getSingleFeaturedService = async (id) => {
   const result = await Featured.findById(id);
   return result;

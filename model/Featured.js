@@ -22,7 +22,6 @@ const featuredSchema = mongoose.Schema(
     background: {
       type: String,
       required: true,
-      validate: [validator.isURL, "Please provide valid url(s)"],
     },
     price: {
       type: Number,
