@@ -108,7 +108,7 @@ exports.getTopRatedProductService = async () => {
 exports.getProductService = async (id) => {
   const product = await Product.findById(id).populate({
     path: "reviews",
-    populate: { path: "userId", select: "name email imageURL" },
+    // populate: { path: "userId", select: "name email imageURL" },
   });
   return product;
 };
@@ -163,7 +163,7 @@ exports.getReviewsProducts = async () => {
     reviews: { $exists: true, $ne: [] },
   }).populate({
     path: "reviews",
-    populate: { path: "userId", select: "name email imageURL" },
+    // populate: { path: "userId", select: "name email imageURL" },
   });
 
   const products = result.filter((p) => p.reviews.length > 0);

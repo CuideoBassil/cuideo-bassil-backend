@@ -1,9 +1,17 @@
 const mongoose = require("mongoose");
 const { ObjectId } = mongoose.Schema.Types;
+const validator = require("validator");
 
 const reviewSchema = new mongoose.Schema(
   {
-    userId: { type: ObjectId, ref: "User" },
+    name: { type: String, required: true },
+    phoneNumber: { type: String },
+    email: {
+      type: String,
+      validate: [validator.isEmail, "Provide a valid Email"],
+      trim: true,
+      lowercase: true,
+    },
     productId: {
       type: ObjectId,
       ref: "Products",
