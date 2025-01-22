@@ -35,3 +35,17 @@ exports.deleteReviews = async (req, res, next) => {
     next(error);
   }
 };
+
+// delete Review
+exports.deleteSingleReview = async (req, res, next) => {
+  try {
+    const reviewId = req.params.id;
+    const result = await Review.findByIdAndDelete(reviewId);
+    if (result.deletedCount === 0) {
+      return res.status(404).json({ error: "Review not found" });
+    }
+    res.json({ message: "Review was deleted for the product" });
+  } catch (error) {
+    next(error);
+  }
+};

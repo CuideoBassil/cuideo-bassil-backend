@@ -8,7 +8,7 @@ const reviewSchema = new mongoose.Schema(
     phoneNumber: { type: String },
     email: {
       type: String,
-      validate: [validator.isEmail, "Provide a valid Email"],
+      // validate: [validator.isEmail, "Provide a valid Email"],
       trim: true,
       lowercase: true,
     },
