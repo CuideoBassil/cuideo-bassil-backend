@@ -27,6 +27,10 @@ router.get("/stock-out", productController.stockOutProducts);
 router.patch("/edit-product/:id", productController.updateProduct);
 // get Products ByType
 router.get("/:type", productController.getProductsByType);
+// get Products With Type
+router.get("/with/:type", productController.getAllProductsWithTypes);
+// get Products Dynamic
+router.get("/dynamic/:skip/:take", productController.getProductsWithDynamicFilter);
 // get Products ByType
 router.delete("/:id", productController.deleteProduct);
 // update product quantities

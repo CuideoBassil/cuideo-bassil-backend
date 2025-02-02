@@ -10,7 +10,7 @@ const productsSchema = mongoose.Schema({
   },
   img:{
     type: String,
-    required: true,
+    // required: true,
     validate: [validator.isURL, "Please provide valid url(s)"]
   },
   title: {
@@ -27,7 +27,7 @@ const productsSchema = mongoose.Schema({
   },
   unit: {
     type: String,
-    required: true,
+    // required: true,
   },
   imageURLs: [{
     color:{
@@ -56,7 +56,7 @@ const productsSchema = mongoose.Schema({
    },
   children:{
     type:String,
-    required:true,
+    // required:true,
     trim:true,
   },
   price: {

@@ -63,6 +63,82 @@ exports.getProductTypeService = async (req) => {
   return products;
 };
 
+// Get product type service
+exports.getAllProductsWithTypesService = async (req) => {
+  const types = req.params.type || [];
+  const skip = parseInt(req.params.skip, 10) || 0;
+  const take = parseInt(req.params.take, 10) || 10;
+
+  console.log("types: ", types, "skip: ", skip, "take: ", take);
+
+  let query = {}; // Initialize an empty query
+
+  // Construct the query based on types
+  if (Array.isArray(types) && types.length > 0) {
+    if (types.length === 1 && types[0].toLowerCase() === "all") {
+      query = {}; // Return all products if "all" is specified
+    } else {
+      query = { productType: { $in: types } }; // Filter products by provided types
+    }
+  }
+
+  let products;
+
+  if (skip === -1 && take === -1) {
+    // Return all products without pagination
+    products = await Product.find(query)
+      .sort({ createdAt: -1 })
+      .populate("reviews");
+  } else {
+    // Apply pagination with skip and take
+    products = await Product.find(query)
+      .sort({ createdAt: -1 }) // Sort by createdAt in descending order
+      .skip(skip)
+      .limit(take)
+      .populate("reviews");
+  }
+
+  return products;
+};
+// get products with dynamic filtering
+exports.getProductsWithDynamicFilterService = async (req) => {
+  const { skip, take } = req.params;
+  const query = req.query;
+
+  const filter = {}; // Initialize an empty filter object
+
+  // Loop through the query parameters and apply them to the filter dynamically
+  for (const key in query) {
+    if (query.hasOwnProperty(key)) {
+      // Skip fields like "skip" and "take" as they are related to pagination
+      if (key === "skip" || key === "take") continue;
+
+      // If the field exists in the Product model, add it to the filter
+      // Assuming that the key from query directly corresponds to fields in the Product schema
+      filter[key] = query[key];
+    }
+  }
+
+  let products;
+
+  // Apply pagination if skip and take are not -1, otherwise return all products
+  if (skip === "-1" && take === "-1") {
+    // Return all products without pagination
+    products = await Product.find(filter)
+      .sort({ createdAt: -1 }) // Sort by creation date (default to newest)
+      .populate("reviews");
+  } else {
+    // Return products with pagination
+    products = await Product.find(filter)
+      .skip(parseInt(skip, 10)) // Skip for pagination
+      .limit(parseInt(take, 10)) // Take for pagination
+      .sort({ createdAt: -1 }) // Sort by creation date (default to newest)
+      .populate("reviews");
+  }
+
+  return products;
+};
+
 // get offer product service
 exports.getOfferTimerProductService = async (query) => {
   const products = await Product.find({

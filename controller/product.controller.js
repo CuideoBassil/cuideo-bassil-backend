@@ -65,6 +65,47 @@ module.exports.getProductsByType = async (req, res, next) => {
     next(error);
   }
 };
+// get Products With Dynamic Filter
+exports.getProductsWithDynamicFilter = async (req, res, next) => {
+  try {
+    const { skip, take } = req.params;
+    const result = await productServices.getProductsWithDynamicFilterService(
+      req
+    );
+
+    // Return the response
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    next(error); // Pass the error to the error handler
+  }
+};
+
+// Get all products with type
+module.exports.getAllProductsWithTypes = async (req, res, next) => {
+  try {
+    // Parse and process the `type` parameter
+    const type = req.params.type ? req.params.type.split(",") : [];
+    req.params.type = type;
+
+    // Parse `skip` and `take` parameters, default to -1 if not provided
+    req.params.skip = req.query.skip ? parseInt(req.query.skip, 10) : -1;
+    req.params.take = req.query.take ? parseInt(req.query.take, 10) : -1;
+
+    // Call the service with the modified request object
+    const result = await productServices.getAllProductsWithTypesService(req);
+
+    // Respond with the result
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
 
 // get offer product controller
 module.exports.getOfferTimerProducts = async (req, res, next) => {
