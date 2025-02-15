@@ -26,6 +26,14 @@ exports.getAllCategoryServices = async () => {
   return category;
 };
 
+//get all by product type
+exports.getCategoryByProductTypeService = async (productType) => {
+  const categories = await Category.find({
+    productType: productType,
+  }).populate("products");
+  return categories;
+};
+
 // get type of category service
 exports.getCategoryTypeService = async (param) => {
   const categories = await Category.find({ productType: param }).populate(

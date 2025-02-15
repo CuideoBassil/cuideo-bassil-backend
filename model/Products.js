@@ -1,152 +1,52 @@
 const mongoose = require("mongoose");
 const { ObjectId } = mongoose.Schema.Types;
-// schema design
 const validator = require("validator");
 
-const productsSchema = mongoose.Schema(
+const ProductSchema = new mongoose.Schema(
   {
-    sku: {
-      type: String,
-      required: false,
-    },
-    img: {
-      type: String,
-      // required: true,
-      validate: [validator.isURL, "Please provide valid url(s)"],
-    },
-    title: {
-      type: String,
-      required: [true, "Please provide a name for this product."],
-      trim: true,
-      minLength: [2, "Name must be at least 2 characters."],
-      maxLength: [200, "Name is too large"],
-    },
-    slug: {
-      type: String,
-      trim: true,
-      required: false,
-    },
-    unit: {
-      type: String,
-      // required: true,
-    },
-    imageURLs: [
-      {
-        color: {
-          name: {
-            type: String,
-            required: false,
-            trim: true,
-          },
-          clrCode: {
-            type: String,
-            required: false,
-            trim: true,
-          },
-        },
-        img: {
-          type: String,
-          required: false,
-          validate: [validator.isURL, "Please provide valid url(s)"],
-        },
-        sizes: [String],
-      },
-    ],
-    parent: {
-      type: String,
-      // required:true,
-      trim: true,
-    },
-    children: {
-      type: String,
-      // required:true,
-      trim: true,
-    },
-    price: {
-      type: Number,
-      required: true,
-      min: [0, "Product price can't be negative"],
-    },
-    discount: {
-      type: Number,
-      min: [0, "Product price can't be negative"],
-    },
-    quantity: {
-      type: Number,
-      required: true,
-      min: [0, "Product quantity can't be negative"],
-    },
+    title: { type: String, required: true },
     brand: {
-      name: {
-        type: String,
-        required: true,
-      },
-      id: {
-        type: ObjectId,
-        ref: "Brand",
-        required: true,
-      },
+      id: { type: mongoose.Schema.Types.ObjectId, ref: "Brand" },
+      name: { type: String },
     },
     category: {
-      name: {
-        type: String,
-        // required: true,
-      },
-      id: {
-        type: ObjectId,
-        ref: "Category",
-        // required: true,
-      },
+      id: { type: mongoose.Schema.Types.ObjectId, ref: "Category" },
+      name: { type: String },
     },
-    status: {
-      type: String,
+    sku: { type: String, required: true },
+    color: {
+      type: {
+        code: { type: String },
+        name: { type: String },
+      },
       required: true,
-      enum: {
-        values: ["in-stock", "out-of-stock", "discontinued"],
-        message: "status can't be {VALUE} ",
-      },
-      default: "in-stock",
     },
-    reviews: [{ type: ObjectId, ref: "Reviews" }],
-    productType: {
-      type: String,
-      required: true,
-      lowercase: true,
-    },
-    description: {
-      type: String,
-      // required: true
-    },
-    videoId: {
-      type: String,
-      required: false,
-    },
-    additionalInformation: [{}],
+    image: { type: String, required: true },
+    additionalImages: [{ type: String }],
+    slug: { type: String, required: true },
+    unit: { type: String },
     tags: [String],
-    sizes: [String],
+    parent: { type: String },
+    children: [String],
+    price: { type: Number, required: true },
+    discount: { type: Number, default: 0 },
+    quantity: { type: Number, required: true },
+    status: { type: String, default: "in-stock" },
+    productType: {
+      id: { type: mongoose.Schema.Types.ObjectId, ref: "ProductsType" },
+      name: { type: String },
+    },
+    description: { type: String },
+    additionalInformation: { type: String },
     offerDate: {
-      startDate: {
-        type: Date,
-      },
-      endDate: {
-        type: Date,
-      },
+      startDate: { type: Date },
+      endDate: { type: Date },
     },
-    featured: {
-      type: Boolean,
-      default: false,
-    },
-    sellCount: {
-      type: Number,
-      default: 0,
-      min: 0,
-    },
+    reviews: [{ type: mongoose.Schema.Types.ObjectId, ref: "Reviews" }],
   },
-  {
-    timestamps: true,
-  }
+  { timestamps: true }
 );
 
-const Products = mongoose.model("Products", productsSchema);
+const Products = mongoose.model("Products", ProductSchema);
 
 module.exports = Products;

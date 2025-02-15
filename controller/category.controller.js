@@ -53,6 +53,29 @@ exports.getAllCategory = async (req, res, next) => {
   }
 };
 
+// get category by product type
+exports.getCategoriesByProductType = async (req, res, next) => {
+  try {
+    const { productType } = req.params;
+
+    if (!productType) {
+      return res.status(400).json({ message: "Product type is required" });
+    }
+
+    const categories = await categoryServices.getCategoryByProductTypeService(
+      productType
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Categories fetched successfully",
+      data: categories,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // add all category
 exports.getProductTypeCategory = async (req, res, next) => {
   try {

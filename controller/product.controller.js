@@ -1,24 +1,48 @@
 const productServices = require("../services/product.service");
 
-// add product
+// Add product
 exports.addProduct = async (req, res, next) => {
   try {
-    const firstItem = {
-      color: {
-        name: "",
-        clrCode: "",
+    const productData = {
+      title: req.body.title,
+      brand: {
+        id: req.body.brand?.id,
+        name: req.body.brand?.name,
       },
-      img: req.body.img,
+      category: {
+        id: req.body.category?.id,
+        name: req.body.category?.name,
+      },
+      sku: req.body.sku,
+      color: req.body.color,
+      image: req.body.image,
+      additionalImages: req.body.additionalImages || [],
+      slug: req.body.slug,
+      unit: req.body.unit,
+      tags: req.body.tags || [],
+      parent: req.body.parent,
+      children: req.body.children || [],
+      price: req.body.price,
+      discount: req.body.discount || 0,
+      quantity: req.body.quantity,
+      status: req.body.status || "in-stock",
+      productType: {
+        id: req.body.productType?.id,
+        name: req.body.productType?.name,
+      },
+      description: req.body.description,
+      additionalInformation: req.body.additionalInformation,
+      offerDate: {
+        startDate: req.body.offerDate?.startDate,
+        endDate: req.body.offerDate?.endDate,
+      },
+      reviews: req.body.reviews || [],
     };
-    const imageURLs = [firstItem, ...req.body.imageURLs];
-    const result = await productServices.createProductService({
-      ...req.body,
-      imageURLs: imageURLs,
-    });
 
-    res.status(200).json({
+    const result = await productServices.createProductService(productData);
+
+    res.status(201).json({
       success: true,
-      status: "success",
       message: "Product created successfully!",
       data: result,
     });
@@ -27,20 +51,21 @@ exports.addProduct = async (req, res, next) => {
   }
 };
 
-// add all product
-module.exports.addAllProducts = async (req, res, next) => {
+// Add multiple products
+exports.addAllProducts = async (req, res, next) => {
   try {
     const result = await productServices.addAllProductService(req.body);
-    res.json({
+    res.status(201).json({
+      success: true,
       message: "Products added successfully",
-      result,
+      data: result,
     });
   } catch (error) {
     next(error);
   }
 };
 
-// get all products
+// Get all products
 exports.getAllProducts = async (req, res, next) => {
   try {
     const result = await productServices.getAllProductsService();
@@ -53,8 +78,8 @@ exports.getAllProducts = async (req, res, next) => {
   }
 };
 
-// get all products by type
-module.exports.getProductsByType = async (req, res, next) => {
+// Get products by type
+exports.getProductsByType = async (req, res, next) => {
   try {
     const result = await productServices.getProductTypeService(req);
     res.status(200).json({
@@ -65,39 +90,13 @@ module.exports.getProductsByType = async (req, res, next) => {
     next(error);
   }
 };
-// get Products With Dynamic Filter
+
+// Get products with dynamic filters
 exports.getProductsWithDynamicFilter = async (req, res, next) => {
   try {
-    const { skip, take } = req.params;
     const result = await productServices.getProductsWithDynamicFilterService(
       req
     );
-
-    // Return the response
-    res.status(200).json({
-      success: true,
-      data: result,
-    });
-  } catch (error) {
-    next(error); // Pass the error to the error handler
-  }
-};
-
-// Get all products with type
-module.exports.getAllProductsWithTypes = async (req, res, next) => {
-  try {
-    // Parse and process the `type` parameter
-    const type = req.params.type ? req.params.type.split(",") : [];
-    req.params.type = type;
-
-    // Parse `skip` and `take` parameters, default to -1 if not provided
-    req.params.skip = req.query.skip ? parseInt(req.query.skip, 10) : -1;
-    req.params.take = req.query.take ? parseInt(req.query.take, 10) : -1;
-
-    // Call the service with the modified request object
-    const result = await productServices.getAllProductsWithTypesService(req);
-
-    // Respond with the result
     res.status(200).json({
       success: true,
       data: result,
@@ -107,8 +106,27 @@ module.exports.getAllProductsWithTypes = async (req, res, next) => {
   }
 };
 
-// get offer product controller
-module.exports.getOfferTimerProducts = async (req, res, next) => {
+// Get all products with types
+exports.getAllProductsWithTypes = async (req, res, next) => {
+  try {
+    const type = req.params.type ? req.params.type.split(",") : [];
+    req.params.type = type;
+
+    req.params.skip = req.query.skip ? parseInt(req.query.skip, 10) : -1;
+    req.params.take = req.query.take ? parseInt(req.query.take, 10) : -1;
+
+    const result = await productServices.getAllProductsWithTypesService(req);
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Get offer products
+exports.getOfferTimerProducts = async (req, res, next) => {
   try {
     const result = await productServices.getOfferTimerProductService(
       req.query.type
@@ -122,8 +140,8 @@ module.exports.getOfferTimerProducts = async (req, res, next) => {
   }
 };
 
-// get Popular Product By Type
-module.exports.getPopularProductByType = async (req, res, next) => {
+// Get popular products by type
+exports.getPopularProductByType = async (req, res, next) => {
   try {
     const result = await productServices.getPopularProductServiceByType(
       req.params.type
@@ -137,8 +155,8 @@ module.exports.getPopularProductByType = async (req, res, next) => {
   }
 };
 
-// get top rated Products
-module.exports.getTopRatedProducts = async (req, res, next) => {
+// Get top-rated products
+exports.getTopRatedProducts = async (req, res, next) => {
   try {
     const result = await productServices.getTopRatedProductService();
     res.status(200).json({
@@ -150,17 +168,17 @@ module.exports.getTopRatedProducts = async (req, res, next) => {
   }
 };
 
-// getSingleProduct
+// Get single product
 exports.getSingleProduct = async (req, res, next) => {
   try {
     const product = await productServices.getProductService(req.params.id);
-    res.json(product);
+    res.status(200).json({ success: true, data: product });
   } catch (error) {
     next(error);
   }
 };
 
-// get Related Product
+// Get related products
 exports.getRelatedProducts = async (req, res, next) => {
   try {
     const products = await productServices.getRelatedProductService(
@@ -175,20 +193,24 @@ exports.getRelatedProducts = async (req, res, next) => {
   }
 };
 
-// update product
+// Update product
 exports.updateProduct = async (req, res, next) => {
   try {
-    const product = await productServices.updateProductService(
+    const updatedProduct = await productServices.updateProductService(
       req.params.id,
       req.body
     );
-    res.send({ data: product, message: "Product updated successfully!" });
+    res.status(200).json({
+      success: true,
+      message: "Product updated successfully!",
+      data: updatedProduct,
+    });
   } catch (error) {
     next(error);
   }
 };
 
-// update product
+// Get reviewed products
 exports.reviewProducts = async (req, res, next) => {
   try {
     const products = await productServices.getReviewsProducts();
@@ -201,7 +223,7 @@ exports.reviewProducts = async (req, res, next) => {
   }
 };
 
-// update product
+// Get stock-out products
 exports.stockOutProducts = async (req, res, next) => {
   try {
     const products = await productServices.getStockOutProducts();
@@ -214,23 +236,23 @@ exports.stockOutProducts = async (req, res, next) => {
   }
 };
 
-// update product
+// Delete product
 exports.deleteProduct = async (req, res, next) => {
   try {
     await productServices.deleteProduct(req.params.id);
     res.status(200).json({
-      message: "Product delete successfully",
+      success: true,
+      message: "Product deleted successfully",
     });
   } catch (error) {
     next(error);
   }
 };
 
-// update products quantities
+// Update product quantities
 exports.updateQuantities = async (req, res, next) => {
   const updates = req.body;
 
-  // Validate incoming data
   if (!Array.isArray(updates)) {
     return res
       .status(400)
@@ -238,9 +260,10 @@ exports.updateQuantities = async (req, res, next) => {
   }
 
   try {
-    // Call the service function to update the quantities
     await productServices.updateQuantitiesService(updates);
-    res.status(200).json({ message: "Quantities updated successfully." });
+    res
+      .status(200)
+      .json({ success: true, message: "Quantities updated successfully." });
   } catch (error) {
     next(error);
   }
