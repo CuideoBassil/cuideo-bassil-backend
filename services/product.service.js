@@ -91,11 +91,15 @@ exports.getProductTypeService = async (req) => {
 
 // Get products by types with pagination
 exports.getAllProductsWithTypesService = async (req) => {
-  let types = req.params.type ? req.params.type.split(",") : [];
+  const { type } = req.params;
+  // let types = req.params.type ? req.params.type.split(",") : [];
   const skip = parseInt(req.params.skip, 10) || 0;
   const take = parseInt(req.params.take, 10) || 10;
 
-  let query = types.includes("all") ? {} : { productType: { $in: types } };
+  const types = Array.isArray(type) ? type : [];
+  const query = types.includes("All")
+    ? {}
+    : { productType: { name: { $in: types } } };
 
   return Product.find(query)
     .sort({ createdAt: -1 })
