@@ -30,12 +30,12 @@ exports.signup = async (req, res, next) => {
   
           <p style="margin-bottom:20px;">Click this link for active your account</p>
   
-          <a href="${secret.client_url}/email-verify/${token}" style="background:#0989FF;color:white;border:1px solid #0989FF; padding: 10px 15px; border-radius: 4px; text-decoration:none;">Verify Account</a>
+          <a href="${secret.client_url}/admin/email-verify/${token}" style="background:#0989FF;color:white;border:1px solid #0989FF; padding: 10px 15px; border-radius: 4px; text-decoration:none;">Verify Account</a>
   
           <p style="margin-top: 35px;">If you did not initiate this request, please contact us immediately at support@shofy.com</p>
   
           <p style="margin-bottom:0px;">Thank you</p>
-          <strong>shofy Team</strong>
+          <strong>Cuideo Bassil Team</strong>
            `,
       };
       const message = "Please check your email to verify!";
@@ -177,12 +177,12 @@ exports.forgetPassword = async (req, res, next) => {
 
         <p style="margin-bottom:20px;">Click this link for reset your password</p>
 
-        <a href=${secret.client_url}/forgot-password/${token} style="background:#0989FF;color:white;border:1px solid #0989FF; padding: 10px 15px; border-radius: 4px; text-decoration:none;">Reset Password</a>
+        <a href=${secret.client_url}/admin/forgot-password/${token} style="background:#0989FF;color:white;border:1px solid #0989FF; padding: 10px 15px; border-radius: 4px; text-decoration:none;">Reset Password</a>
 
         <p style="margin-top: 35px;">If you did not initiate this request, please contact us immediately at cuideobassilhome2025@gmail.com</p>
 
         <p style="margin-bottom:0px;">Thank you</p>
-        <strong>Shofy Team</strong>
+        <strong>Cuideo Bassil Team</strong>
         `,
       };
       user.confirmationToken = token;
