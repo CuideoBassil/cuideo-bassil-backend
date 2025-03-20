@@ -140,14 +140,22 @@ exports.getTopRatedProductService = async () => {
     reviews: { $exists: true, $ne: [] },
   }).populate("reviews");
 
-  return products
-    .map((product) => ({
+  const topRatedProducts = products.map((product) => {
+    const totalRating = product.reviews.reduce(
+      (sum, review) => sum + review.rating,
+      0
+    );
+    const averageRating = totalRating / product.reviews.length;
+
+    return {
       ...product.toObject(),
-      rating:
-        product.reviews.reduce((sum, r) => sum + r.rating, 0) /
-        product.reviews.length,
-    }))
-    .sort((a, b) => b.rating - a.rating);
+      rating: averageRating,
+    };
+  });
+
+  topRatedProducts.sort((a, b) => b.rating - a.rating);
+
+  return topRatedProducts;
 };
 
 // Get product by ID
@@ -202,46 +210,46 @@ exports.deleteProduct = async (id) => {
 };
 
 // Update product quantities
-exports.updateQuantitiesService = async (updates) => {
-  if (!Array.isArray(updates)) throw new Error("Updates should be an array");
+// exports.updateQuantitiesService = async (updates) => {
+//   if (!Array.isArray(updates)) throw new Error("Updates should be an array");
 
-  const bulkUpdates = updates.map((update) => {
-    if (!update.sku || typeof update.quantity !== "number") {
-      throw new Error("Each update must have a valid sku and quantity");
-    }
-    return {
-      updateOne: {
-        filter: { sku: update.sku },
-        update: {
-          $set: {
-            quantity: update.quantity,
-            status: update.quantity > 0 ? "in-stock" : "out-of-stock",
-          },
-        },
-      },
-    };
-  });
-
-  return Product.bulkWrite(bulkUpdates);
-};
-
-// update products quatities
-// module.exports.updateQuantitiesService = async (updates) => {
-//   for (const update of updates) {
+//   const bulkUpdates = updates.map((update) => {
 //     if (!update.sku || typeof update.quantity !== "number") {
-//       throw new Error("Each object must contain sku and quantity.");
+//       throw new Error("Each update must have a valid sku and quantity");
 //     }
-//     const product = await Product.findOne({ sku: update.sku });
-//     if (product) {
-//       await Product.updateOne(
-//         { _id: product.id },
-//         {
+//     return {
+//       updateOne: {
+//         filter: { sku: update.sku },
+//         update: {
 //           $set: {
 //             quantity: update.quantity,
 //             status: update.quantity > 0 ? "in-stock" : "out-of-stock",
 //           },
-//         }
-//       );
-//     }
-//   }
+//         },
+//       },
+//     };
+//   });
+
+//   return Product.bulkWrite(bulkUpdates);
 // };
+
+// update products quatities
+module.exports.updateQuantitiesService = async (updates) => {
+  for (const update of updates) {
+    if (!update.sku || typeof update.quantity !== "number") {
+      throw new Error("Each object must contain sku and quantity.");
+    }
+    const product = await Product.findOne({ sku: update.sku });
+    if (product) {
+      await Product.updateOne(
+        { _id: product.id },
+        {
+          $set: {
+            quantity: update.quantity,
+            status: update.quantity > 0 ? "in-stock" : "out-of-stock",
+          },
+        }
+      );
+    }
+  }
+};

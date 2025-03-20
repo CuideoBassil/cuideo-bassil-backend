@@ -1,8 +1,8 @@
-const ProductsType = require('../model/ProductsType');
-const productsTypeService = require('../services/productsType.service');
+const ProductsType = require("../model/ProductsType");
+const productsTypeService = require("../services/productsType.service");
 
-// add a productsType 
-exports.addProductsType = async (req, res,next) => {
+// add a productsType
+exports.addProductsType = async (req, res, next) => {
   try {
     const result = await productsTypeService.addProductsTypeService(req.body);
     res.status(200).json({
@@ -11,82 +11,89 @@ exports.addProductsType = async (req, res,next) => {
       data: result,
     });
   } catch (error) {
-    next(error)
+    next(error);
   }
-}
+};
 
 // add all ProductsType
-exports.addAllProductsType = async (req,res,next) => {
+exports.addAllProductsType = async (req, res, next) => {
   try {
-    const result = await productsTypeService.addAllProductsTypeService(req.body);
+    const result = await productsTypeService.addAllProductsTypeService(
+      req.body
+    );
     res.json({
-      message:'ProductsTypes added successfully',
+      message: "ProductsTypes added successfully",
       result,
-    })
+    });
   } catch (error) {
-    next(error)
+    next(error);
   }
-}
+};
 
 // get active ProductsType
-exports.getAllProductsTypes = async (req,res,next) => {
+exports.getAllProductsTypes = async (req, res, next) => {
   try {
-    const result = await ProductsType.find({},{name:1});
+    const result = await ProductsType.find({}, { name: 1, image: 1 });
     res.status(200).json({
-      success:true,
+      success: true,
       result,
-    })
+    });
   } catch (error) {
-    next(error)
+    next(error);
   }
-}
+};
 
 // get active ProductsType
-exports.getActiveProductsTypes = async (req,res,next) => {
+exports.getActiveProductsTypes = async (req, res, next) => {
   try {
     const result = await productsTypeService.getProductsTypesService();
     res.status(200).json({
-      success:true,
+      success: true,
       result,
-    })
+    });
   } catch (error) {
-    next(error)
+    next(error);
   }
-}
+};
 
 // delete ProductsType
-exports.deleteProductsType = async (req,res,next) => {
+exports.deleteProductsType = async (req, res, next) => {
   try {
     await productsTypeService.deleteProductsTypesService(req.params.id);
     res.status(200).json({
-      success:true,
-      message:'ProductsType delete successfully',
-    })
+      success: true,
+      message: "ProductsType delete successfully",
+    });
   } catch (error) {
-    next(error)
+    next(error);
   }
-}
+};
 
 // update category
-exports.updateProductsType = async (req,res,next) => {
+exports.updateProductsType = async (req, res, next) => {
   try {
-    const result = await productsTypeService.updateProductsTypeService(req.params.id,req.body);
+    const result = await productsTypeService.updateProductsTypeService(
+      req.params.id,
+      req.body
+    );
     res.status(200).json({
-      status:true,
-      message:'ProductsType update successfully',
-      data:result,
-    })
+      status: true,
+      message: "ProductsType update successfully",
+      data: result,
+    });
   } catch (error) {
-    next(error)
+    next(error);
   }
-}
+};
 
 // get single category
-exports.getSingleProductsType = async (req,res,next) => {
+exports.getSingleProductsType = async (req, res, next) => {
   try {
-    const result = await productsTypeService.getSingleProductsTypeService(req.params.id);
-    res.status(200).json(result)
+    const result = await productsTypeService.getSingleProductsTypeService(
+      req.params.id
+    );
+    res.status(200).json(result);
   } catch (error) {
-    next(error)
+    next(error);
   }
-}
+};
