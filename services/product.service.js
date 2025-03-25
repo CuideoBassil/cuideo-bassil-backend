@@ -209,6 +209,34 @@ exports.deleteProduct = async (id) => {
   return Product.findByIdAndDelete(id);
 };
 
+exports.clearExpiredDiscountsService = async () => {
+  try {
+    // Find all products with a discount and the discount has ended
+    const expiredProducts = await Product.find({
+      discount: { $gt: 0 }, // Only consider products with a discount greater than 0
+      "offerDate.endDate": { $lt: new Date() }, // Check if the discount's end date is in the past
+    });
+
+    if (expiredProducts.length === 0) {
+      console.log("No products with expired discounts.");
+      return;
+    }
+
+    // Clear discount on expired products
+    const updatedProducts = await Product.updateMany(
+      { _id: { $in: expiredProducts.map((p) => p._id) } },
+      {
+        $set: { discount: 0 }, // Reset the discount to 0 for expired products
+        $unset: { "offerDate.endDate": "" }, // Optionally, remove the offer end date if you don't need it anymore
+      }
+    );
+
+    console.log(`products' discounts cleared.`);
+  } catch (error) {
+    console.error("Error clearing expired discounts:", error);
+  }
+};
+
 // Update product quantities
 // exports.updateQuantitiesService = async (updates) => {
 //   if (!Array.isArray(updates)) throw new Error("Updates should be an array");
