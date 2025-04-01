@@ -262,22 +262,48 @@ exports.clearExpiredDiscountsService = async () => {
 // };
 
 // update products quatities
+// module.exports.updateQuantitiesService = async (updates) => {
+//   for (const update of updates) {
+//     if (!update.sku || typeof update.quantity !== "number") {
+//       throw new Error("Each object must contain sku and quantity.");
+//     }
+//     const product = await Product.findOne({ sku: update.sku });
+//     if (product) {
+//       await Product.updateOne(
+//         { _id: product.id },
+//         {
+//           $set: {
+//             quantity: update.quantity,
+//             status: update.quantity > 0 ? "in-stock" : "out-of-stock",
+//           },
+//         }
+//       );
+//     }
+//   }
+// };
+
 module.exports.updateQuantitiesService = async (updates) => {
-  for (const update of updates) {
-    if (!update.sku || typeof update.quantity !== "number") {
-      throw new Error("Each object must contain sku and quantity.");
-    }
-    const product = await Product.findOne({ sku: update.sku });
-    if (product) {
-      await Product.updateOne(
-        { _id: product.id },
-        {
+  if (!Array.isArray(updates)) {
+    throw new Error("Updates should be an array.");
+  }
+  console.log("updates", updates);
+  const bulkOperations = updates
+    .filter((update) => update.sku && typeof update.quantity === "number") // Validate updates
+    .map((update) => ({
+      updateOne: {
+        filter: { sku: update.sku },
+        update: {
           $set: {
             quantity: update.quantity,
             status: update.quantity > 0 ? "in-stock" : "out-of-stock",
           },
-        }
-      );
-    }
+        },
+      },
+    }));
+  console.log(JSON.stringify(bulkOperations, null, 2));
+  if (bulkOperations.length === 0) {
+    throw new Error("No valid updates found.");
   }
+
+  await Product.bulkWrite(bulkOperations);
 };
