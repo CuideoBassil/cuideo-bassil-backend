@@ -286,9 +286,17 @@ module.exports.updateQuantitiesService = async (updates) => {
   if (!Array.isArray(updates)) {
     throw new Error("Updates should be an array.");
   }
+
   console.log("updates", updates);
+  console.log("number of updates", updates.length);
+
+  if (updates.length === 0) {
+    console.warn("No updates provided.");
+    return;
+  }
+
   const bulkOperations = updates
-    .filter((update) => update.sku && typeof update.quantity === "number") // Validate updates
+    .filter((update) => update.sku && typeof update.quantity === "number")
     .map((update) => ({
       updateOne: {
         filter: { sku: update.sku },
@@ -300,9 +308,10 @@ module.exports.updateQuantitiesService = async (updates) => {
         },
       },
     }));
-  console.log(JSON.stringify(bulkOperations, null, 2));
+
   if (bulkOperations.length === 0) {
-    throw new Error("No valid updates found.");
+    console.warn("No valid updates found.");
+    return;
   }
 
   await Product.bulkWrite(bulkOperations);
