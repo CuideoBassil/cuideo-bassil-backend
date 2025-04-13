@@ -79,7 +79,7 @@ app.use((req, res, next) => {
   next();
 });
 
-cron.schedule("* 3 * * *", async () => {
+cron.schedule("* 1 * * *", async () => {
   console.log("Running the discount clearance job...");
   await clearExpiredDiscountsService();
 });

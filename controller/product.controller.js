@@ -268,3 +268,18 @@ exports.updateQuantities = async (req, res, next) => {
     next(error);
   }
 };
+
+exports.getFilteredPaginatedProducts = async (req, res) => {
+  try {
+    console.log("GET /filtered/paginated hit");
+    const products = await productServices.getFilteredPaginatedProductsService(
+      req.query
+    );
+    res.status(200).json(products);
+  } catch (error) {
+    console.error("Error fetching filtered paginated products:", error);
+    res
+      .status(500)
+      .json({ message: "Failed to fetch products", error: error.message });
+  }
+};

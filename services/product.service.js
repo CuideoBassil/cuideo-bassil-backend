@@ -211,10 +211,9 @@ exports.deleteProduct = async (id) => {
 
 exports.clearExpiredDiscountsService = async () => {
   try {
-    // Find all products with a discount and the discount has ended
     const expiredProducts = await Product.find({
-      discount: { $gt: 0 }, // Only consider products with a discount greater than 0
-      "offerDate.endDate": { $lt: new Date() }, // Check if the discount's end date is in the past
+      discount: { $gt: 0 },
+      "offerDate.endDate": { $lt: new Date() },
     });
 
     if (expiredProducts.length === 0) {
@@ -222,12 +221,11 @@ exports.clearExpiredDiscountsService = async () => {
       return;
     }
 
-    // Clear discount on expired products
     const updatedProducts = await Product.updateMany(
       { _id: { $in: expiredProducts.map((p) => p._id) } },
       {
-        $set: { discount: 0 }, // Reset the discount to 0 for expired products
-        $unset: { "offerDate.endDate": "" }, // Optionally, remove the offer end date if you don't need it anymore
+        $set: { discount: 0 },
+        $unset: { "offerDate.endDate": "" },
       }
     );
 
@@ -237,57 +235,11 @@ exports.clearExpiredDiscountsService = async () => {
   }
 };
 
-// Update product quantities
-// exports.updateQuantitiesService = async (updates) => {
-//   if (!Array.isArray(updates)) throw new Error("Updates should be an array");
-
-//   const bulkUpdates = updates.map((update) => {
-//     if (!update.sku || typeof update.quantity !== "number") {
-//       throw new Error("Each update must have a valid sku and quantity");
-//     }
-//     return {
-//       updateOne: {
-//         filter: { sku: update.sku },
-//         update: {
-//           $set: {
-//             quantity: update.quantity,
-//             status: update.quantity > 0 ? "in-stock" : "out-of-stock",
-//           },
-//         },
-//       },
-//     };
-//   });
-
-//   return Product.bulkWrite(bulkUpdates);
-// };
-
-// update products quatities
-// module.exports.updateQuantitiesService = async (updates) => {
-//   for (const update of updates) {
-//     if (!update.sku || typeof update.quantity !== "number") {
-//       throw new Error("Each object must contain sku and quantity.");
-//     }
-//     const product = await Product.findOne({ sku: update.sku });
-//     if (product) {
-//       await Product.updateOne(
-//         { _id: product.id },
-//         {
-//           $set: {
-//             quantity: update.quantity,
-//             status: update.quantity > 0 ? "in-stock" : "out-of-stock",
-//           },
-//         }
-//       );
-//     }
-//   }
-// };
-
 module.exports.updateQuantitiesService = async (updates) => {
   if (!Array.isArray(updates)) {
     throw new Error("Updates should be an array.");
   }
 
-  console.log("updates", updates);
   console.log("number of updates", updates.length);
 
   if (updates.length === 0) {
@@ -316,3 +268,88 @@ module.exports.updateQuantitiesService = async (updates) => {
 
   await Product.bulkWrite(bulkOperations);
 };
+
+exports.getFilteredPaginatedProductsService = async (query) => {
+  const {
+    skip = 0,
+    take = 10,
+    brand,
+    category,
+    productType,
+    color,
+    search,
+    status,
+  } = query;
+
+  const filter = {};
+
+  // Text-based filters (case-insensitive)
+  if (brand) {
+    filter["brand.name"] = { $regex: new RegExp(brand, "i") };
+  }
+  if (category) {
+    filter["category.name"] = { $regex: new RegExp(category, "i") };
+  }
+  if (productType) {
+    filter["productType.name"] = { $regex: new RegExp(productType, "i") };
+  }
+  if (color) {
+    filter["color.name"] = { $regex: new RegExp(color, "i") };
+  }
+  if (search) {
+    filter["title"] = { $regex: new RegExp(search, "i") };
+  }
+  if (status) {
+    filter["status"] = status;
+  }
+
+  // Fetch the products with pagination (default sort by createdAt descending)
+  const products = await Product.find(filter)
+    .sort({ createdAt: -1 })
+    .skip(parseInt(skip, 10))
+    .limit(parseInt(take, 10))
+    .populate("reviews");
+
+  // Count the total number of products matching filters
+  const totalCount = await Product.countDocuments(filter);
+
+  return {
+    products,
+    totalCount,
+  };
+};
+// exports.getFilteredPaginatedProductsService = async (query) => {
+//   const { skip = 0, take = 10, brand, category, productType, color } = query;
+
+//   const filter = {};
+
+//   // Use regular expressions for case-insensitive filtering
+//   if (brand) {
+//     filter["brand.name"] = { $regex: new RegExp(brand, "i") }; // Case-insensitive
+//   }
+//   if (category) {
+//     filter["category.name"] = { $regex: new RegExp(category, "i") }; // Case-insensitive
+//   }
+//   if (productType) {
+//     filter["productType.name"] = { $regex: new RegExp(productType, "i") }; // Case-insensitive
+//   }
+//   if (color) {
+//     filter["color.name"] = { $regex: new RegExp(color, "i") }; // Case-insensitive
+//   }
+
+//   // Fetch the products with pagination
+//   const products = await Product.find(filter)
+//     .sort({ createdAt: -1 })
+//     .skip(parseInt(skip, 10))
+//     .limit(parseInt(take, 10))
+//     .populate("reviews");
+
+//   // Count the total number of products without pagination (just filtered data)
+//   const totalCount = await Product.countDocuments(filter);
+
+//   // Return both the data and the total count
+//   return {
+//     products,
+//     totalCount,
+//   };
+// };
