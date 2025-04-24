@@ -194,6 +194,20 @@ exports.updateProductService = async (id, currProduct) => {
 
 // Get reviewed products
 exports.getReviewsProducts = async () => {
+  const products = await Product.find({ reviews: { $exists: true } }).populate(
+    "reviews"
+  );
+  console.log("products", products);
+  // Filter out products where reviews array is empty
+  const filteredProducts = products.filter(
+    (product) => product.reviews.length > 0
+  );
+  console.log("filteredProducts", filteredProducts);
+
+  return filteredProducts;
+};
+
+exports.getReviewsProducts = async () => {
   return Product.find({ reviews: { $exists: true, $ne: [] } }).populate(
     "reviews"
   );
@@ -268,88 +282,161 @@ module.exports.updateQuantitiesService = async (updates) => {
 
   await Product.bulkWrite(bulkOperations);
 };
-
 exports.getFilteredPaginatedProductsService = async (query) => {
-  const {
-    skip = 0,
-    take = 10,
-    brand,
-    category,
-    productType,
-    color,
-    search,
-    status,
-  } = query;
+  try {
+    const {
+      skip = 0,
+      take = 10,
+      brand,
+      category,
+      productType,
+      color,
+      search,
+      status,
+      sortBy,
+    } = query;
 
-  const filter = {};
+    const filter = {};
+    const sortOptions = {};
 
-  // Text-based filters (case-insensitive)
-  if (brand) {
-    filter["brand.name"] = { $regex: new RegExp(brand, "i") };
-  }
-  if (category) {
-    filter["category.name"] = { $regex: new RegExp(category, "i") };
-  }
-  if (productType) {
-    filter["productType.name"] = { $regex: new RegExp(productType, "i") };
-  }
-  if (color) {
-    filter["color.name"] = { $regex: new RegExp(color, "i") };
-  }
-  if (search) {
-    filter["title"] = { $regex: new RegExp(search, "i") };
-  }
-  if (status) {
-    filter["status"] = status;
-  }
+    // Individual filters
+    if (brand) {
+      filter["brand.name"] = { $regex: new RegExp(brand, "i") };
+    }
+    if (category) {
+      filter["category.name"] = { $regex: new RegExp(category, "i") };
+    }
+    if (productType) {
+      filter["productType.name"] = { $regex: new RegExp(productType, "i") };
+    }
+    if (color) {
+      filter["color.name"] = { $regex: new RegExp(color, "i") };
+    }
+    if (status) {
+      filter["status"] = status;
+    }
 
-  // Fetch the products with pagination (default sort by createdAt descending)
-  const products = await Product.find(filter)
-    .sort({ createdAt: -1 })
-    .skip(parseInt(skip, 10))
-    .limit(parseInt(take, 10))
-    .populate("reviews");
+    // Global search across multiple text fields (excluding price and discount)
+    if (search) {
+      filter.$or = [
+        { title: { $regex: new RegExp(search, "i") } },
+        { "brand.name": { $regex: new RegExp(search, "i") } },
+        { "category.name": { $regex: new RegExp(search, "i") } },
+        { "color.name": { $regex: new RegExp(search, "i") } },
+        { "color.code": { $regex: new RegExp(search, "i") } },
+        { "productType.name": { $regex: new RegExp(search, "i") } },
+        { description: { $regex: new RegExp(search, "i") } },
+        { additionalInformation: { $regex: new RegExp(search, "i") } },
+        { tags: { $regex: new RegExp(search, "i") } },
+        { sku: { $regex: new RegExp(search, "i") } },
+        { unit: { $regex: new RegExp(search, "i") } },
+      ];
+    }
 
-  // Count the total number of products matching filters
-  const totalCount = await Product.countDocuments(filter);
+    // Determine the sorting options
+    if (sortBy) {
+      switch (sortBy.toUpperCase()) {
+        case "LTH":
+          sortOptions.price = 1;
+          break;
+        case "HTL":
+          sortOptions.price = -1;
+          break;
+        default:
+          sortOptions.createdAt = -1;
+      }
+    } else {
+      sortOptions.createdAt = -1;
+    }
 
-  return {
-    products,
-    totalCount,
-  };
+    // Fetch the products with pagination and sorting
+    const products = await Product.find(filter)
+      .sort(sortOptions)
+      .skip(parseInt(skip, 10))
+      .limit(parseInt(take, 10))
+      .populate("reviews");
+
+    // Count the total number of products matching filters
+    const totalCount = await Product.countDocuments(filter);
+
+    return {
+      products,
+      totalCount,
+    };
+  } catch (error) {
+    console.error("Error in getFilteredPaginatedProductsService:", error);
+    throw new Error("Failed to retrieve products.");
+  }
 };
 // exports.getFilteredPaginatedProductsService = async (query) => {
-//   const { skip = 0, take = 10, brand, category, productType, color } = query;
+//   try {
+//     const {
+//       skip = 0,
+//       take = 10,
+//       brand,
+//       category,
+//       productType,
+//       color,
+//       search,
+//       status,
+//       sortBy,
+//     } = query;
 
-//   const filter = {};
+//     const filter = {};
+//     const sortOptions = {};
 
-//   // Use regular expressions for case-insensitive filtering
-//   if (brand) {
-//     filter["brand.name"] = { $regex: new RegExp(brand, "i") }; // Case-insensitive
+//     // Text-based filters (case-insensitive)
+//     if (brand) {
+//       filter["brand.name"] = { $regex: new RegExp(brand, "i") };
+//     }
+//     if (category) {
+//       filter["category.name"] = { $regex: new RegExp(category, "i") };
+//     }
+//     if (productType) {
+//       filter["productType.name"] = { $regex: new RegExp(productType, "i") };
+//     }
+//     if (color) {
+//       filter["color.name"] = { $regex: new RegExp(color, "i") };
+//     }
+//     if (search) {
+//       filter["title"] = { $regex: new RegExp(search, "i") };
+//     }
+//     if (status) {
+//       filter["status"] = status;
+//     }
+
+//     // Determine the sorting options
+//     if (sortBy) {
+//       switch (sortBy.toUpperCase()) {
+//         case "LTH":
+//           sortOptions.price = 1;
+//           break;
+//         case "HTL":
+//           sortOptions.price = -1;
+//           break;
+//         default:
+//           sortOptions.createdAt = -1;
+//       }
+//     } else {
+//       sortOptions.createdAt = -1; // This line is now necessary to handle the case where sortBy is not provided
+//     }
+
+//     // Fetch the products with pagination and sorting
+//     const products = await Product.find(filter)
+//       .sort(sortOptions)
+//       .skip(parseInt(skip, 10))
+//       .limit(parseInt(take, 10))
+//       .populate("reviews"); // Assuming you have a reviews relation
+
+//     // Count the total number of products matching filters
+//     const totalCount = await Product.countDocuments(filter);
+
+//     return {
+//       products,
+//       totalCount,
+//     };
+//   } catch (error) {
+//     console.error("Error in getFilteredPaginatedProductsService:", error);
+//     throw new Error("Failed to retrieve products."); // Or handle the error as needed
 //   }
-//   if (category) {
-//     filter["category.name"] = { $regex: new RegExp(category, "i") }; // Case-insensitive
-//   }
-//   if (productType) {
-//     filter["productType.name"] = { $regex: new RegExp(productType, "i") }; // Case-insensitive
-//   }
-//   if (color) {
-//     filter["color.name"] = { $regex: new RegExp(color, "i") }; // Case-insensitive
-//   }
-
-//   // Fetch the products with pagination
-//   const products = await Product.find(filter)
-//     .sort({ createdAt: -1 })
-//     .skip(parseInt(skip, 10))
-//     .limit(parseInt(take, 10))
-//     .populate("reviews");
-
-//   // Count the total number of products without pagination (just filtered data)
-//   const totalCount = await Product.countDocuments(filter);
-
-//   // Return both the data and the total count
-//   return {
-//     products,
-//     totalCount,
-//   };
 // };

@@ -39,6 +39,15 @@ const featuredSchema = mongoose.Schema(
       default: 1,
       enum: [1, 2, 3],
     },
+    productId: {
+      type: String,
+      required: false,
+    },
+    productSku: {
+      type: String,
+      required: false,
+      trim: true,
+    },
   },
   {
     timestamps: true,
