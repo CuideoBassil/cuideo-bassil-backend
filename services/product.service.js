@@ -63,14 +63,14 @@ exports.addAllProductService = async (data) => {
 
 // Get all products
 exports.getAllProductsService = async () => {
-  return await Product.find({}).populate("reviews");
+  return await Product.find({ status: "in-stock" }).populate("reviews");
 };
 
 // Get products by type with filtering
 exports.getProductTypeService = async (req) => {
   const { type } = req.params;
   const query = req.query;
-  let filter = { productType: type };
+  let filter = { productType: type, status: "in-stock" };
 
   if (query.new === "true") {
     return Product.find(filter)
@@ -98,8 +98,8 @@ exports.getAllProductsWithTypesService = async (req) => {
 
   const types = Array.isArray(type) ? type : [];
   const query = types.includes("All")
-    ? {}
-    : { productType: { name: { $in: types } } };
+    ? { status: "in-stock" }
+    : { productType: { name: { $in: types } }, status: "in-stock" };
 
   return Product.find(query)
     .sort({ createdAt: -1 })
@@ -111,6 +111,7 @@ exports.getAllProductsWithTypesService = async (req) => {
 // Get products with dynamic filtering
 exports.getProductsWithDynamicFilterService = async (req) => {
   const { skip, take, ...filters } = req.query;
+  filters.status = "in-stock";
   return Product.find(filters)
     .sort({ createdAt: -1 })
     .skip(parseInt(skip, 10) || 0)
@@ -122,13 +123,14 @@ exports.getProductsWithDynamicFilterService = async (req) => {
 exports.getOfferTimerProductService = async (query) => {
   return Product.find({
     productType: query,
+    status: "in-stock",
     "offerDate.endDate": { $gt: new Date() },
   }).populate("reviews");
 };
 
 // Get popular products by type
 exports.getPopularProductServiceByType = async (type) => {
-  return Product.find({ productType: type })
+  return Product.find({ productType: type, status: "in-stock" })
     .sort({ "reviews.length": -1 })
     .limit(8)
     .populate("reviews");
@@ -138,6 +140,7 @@ exports.getPopularProductServiceByType = async (type) => {
 exports.getTopRatedProductService = async () => {
   const products = await Product.find({
     reviews: { $exists: true, $ne: [] },
+    status: "in-stock",
   }).populate("reviews");
 
   const topRatedProducts = products.map((product) => {
@@ -160,7 +163,7 @@ exports.getTopRatedProductService = async () => {
 
 // Get product by ID
 exports.getProductService = async (id) => {
-  return Product.findById(id).populate("reviews");
+  return Product.findOne({ _id: id, status: "in-stock" }).populate("reviews");
 };
 
 // Get related products
@@ -168,6 +171,7 @@ exports.getRelatedProductService = async (productId) => {
   const currentProduct = await Product.findById(productId);
   return Product.find({
     "category.name": currentProduct.category.name,
+    status: "in-stock",
     _id: { $ne: productId },
   });
 };
@@ -194,9 +198,10 @@ exports.updateProductService = async (id, currProduct) => {
 
 // Get reviewed products
 exports.getReviewsProducts = async () => {
-  const products = await Product.find({ reviews: { $exists: true } }).populate(
-    "reviews"
-  );
+  const products = await Product.find({
+    reviews: { $exists: true },
+    status: "in-stock",
+  }).populate("reviews");
   console.log("products", products);
   // Filter out products where reviews array is empty
   const filteredProducts = products.filter(
@@ -208,9 +213,10 @@ exports.getReviewsProducts = async () => {
 };
 
 exports.getReviewsProducts = async () => {
-  return Product.find({ reviews: { $exists: true, $ne: [] } }).populate(
-    "reviews"
-  );
+  return Product.find({
+    reviews: { $exists: true, $ne: [] },
+    status: "in-stock",
+  }).populate("reviews");
 };
 
 // Get out-of-stock products
@@ -227,6 +233,7 @@ exports.clearExpiredDiscountsService = async () => {
   try {
     const expiredProducts = await Product.find({
       discount: { $gt: 0 },
+      status: "in-stock",
       "offerDate.endDate": { $lt: new Date() },
     });
 
@@ -253,7 +260,12 @@ module.exports.updateQuantitiesService = async (updates) => {
   if (!Array.isArray(updates)) {
     throw new Error("Updates should be an array.");
   }
-
+  for (const update of updates) {
+    const product = await Product.findOne({ sku: update.sku });
+    if (product) {
+      console.log(`SKU: ${update.sku}, Quantity: ${update.quantity}`);
+    }
+  }
   console.log("number of updates", updates.length);
 
   if (updates.length === 0) {
@@ -292,7 +304,7 @@ exports.getFilteredPaginatedProductsService = async (query) => {
       productType,
       color,
       search,
-      status,
+      status = "in-stock",
       sortBy,
     } = query;
 
