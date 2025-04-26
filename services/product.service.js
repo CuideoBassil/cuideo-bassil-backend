@@ -261,8 +261,7 @@ module.exports.updateQuantitiesService = async (updates) => {
     throw new Error("Updates should be an array.");
   }
   for (const update of updates) {
-    const product = await Product.findOne({ sku: update.sku });
-    if (product) {
+    if (update.sku == "PFI75TNXG" || update.sku == "WW70T4020CX1AS") {
       console.log(`SKU: ${update.sku}, Quantity: ${update.quantity}`);
     }
   }
@@ -304,7 +303,7 @@ exports.getFilteredPaginatedProductsService = async (query) => {
       productType,
       color,
       search,
-      status = "in-stock",
+      status,
       sortBy,
     } = query;
 
