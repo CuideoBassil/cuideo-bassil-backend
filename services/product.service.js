@@ -261,7 +261,11 @@ module.exports.updateQuantitiesService = async (updates) => {
     throw new Error("Updates should be an array.");
   }
   for (const update of updates) {
-    if (update.sku == "PFI75TNXG" || update.sku == "WW70T4020CX1AS") {
+    if (
+      update.sku == "PFI75TNXG" ||
+      update.sku == "WW70T4020CX1AS" ||
+      update.sku == "FFB8259SBS"
+    ) {
       console.log(`SKU: ${update.sku}, Quantity: ${update.quantity}`);
     }
   }
