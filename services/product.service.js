@@ -163,7 +163,7 @@ exports.getTopRatedProductService = async () => {
 
 // Get product by ID
 exports.getProductService = async (id) => {
-  return Product.findOne({ _id: id, status: "in-stock" }).populate("reviews");
+  return Product.findOne({ _id: id }).populate("reviews");
 };
 
 // Get related products
@@ -261,11 +261,7 @@ module.exports.updateQuantitiesService = async (updates) => {
     throw new Error("Updates should be an array.");
   }
   for (const update of updates) {
-    if (
-      update.sku == "PFI75TNXG" ||
-      update.sku == "WW70T4020CX1AS" ||
-      update.sku == "FFB8259SBS"
-    ) {
+    if (update.sku == "FFB8259SBS") {
       console.log(`SKU: ${update.sku}, Quantity: ${update.quantity}`);
     }
   }
