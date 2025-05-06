@@ -312,16 +312,16 @@ exports.getFilteredPaginatedProductsService = async (query) => {
 
     // Individual filters
     if (brand) {
-      filter["brand.name"] = { $regex: new RegExp(brand, "i") };
+      filter["brand.name"] = new RegExp(`^${brand}$`, "i");
     }
     if (category) {
-      filter["category.name"] = { $regex: new RegExp(category, "i") };
+      filter["category.name"] = new RegExp(`^${category}$`, "i");
     }
     if (productType) {
-      filter["productType.name"] = { $regex: new RegExp(productType, "i") };
+      filter["productType.name"] = new RegExp(`^${productType}$`, "i");
     }
     if (color) {
-      filter["color.name"] = { $regex: new RegExp(color, "i") };
+      filter["color.name"] = new RegExp(`^${color}$`, "i");
     }
     if (status) {
       filter["status"] = status;
