@@ -178,23 +178,80 @@ exports.getRelatedProductService = async (productId) => {
 
 // Update a product
 exports.updateProductService = async (id, currProduct) => {
-  const product = await Product.findById(id);
-  if (!product) throw new Error("Product not found");
+  try {
+    const product = await Product.findById(id).populate("category"); // Populate the category
 
-  Object.assign(product, currProduct);
+    if (!product) {
+      throw new Error("Product not found");
+    }
 
-  if (currProduct.brand) {
-    product.brand = { id: currProduct.brand.id, name: currProduct.brand.name };
+    const oldCategory = product.category; // Store the old category
+    Object.assign(product, currProduct);
+
+    if (currProduct.brand) {
+      product.brand = {
+        id: currProduct.brand.id,
+        name: currProduct.brand.name,
+      };
+    }
+
+    if (currProduct.category) {
+      product.category = {
+        id: currProduct.category.id,
+        name: currProduct.category.name,
+      };
+    }
+    // Save the updated product *before* updating categories
+    await product.save();
+
+    // Handle category updates if the category has changed
+    if (
+      oldCategory &&
+      currProduct.category &&
+      oldCategory.id !== currProduct.category.id
+    ) {
+      const newCategory = await Category.findById(currProduct.category.id);
+      if (!newCategory) {
+        throw new Error("New Category not found");
+      }
+
+      // Remove product ID from the old category's products array
+      await Category.updateOne(
+        { _id: oldCategory._id },
+        { $pull: { products: id } }
+      );
+
+      // Add product ID to the new category's products array, only if it doesn't already exist
+      await Category.updateOne(
+        { _id: newCategory._id },
+        { $addToSet: { products: id } } // Use $addToSet to prevent duplicates
+      );
+    }
+
+    return product; // Return the updated product
+  } catch (error) {
+    console.error("Error updating product:", error);
+    throw error;
   }
-  if (currProduct.category) {
-    product.category = {
-      id: currProduct.category.id,
-      name: currProduct.category.name,
-    };
-  }
-
-  return await product.save();
 };
+// exports.updateProductService = async (id, currProduct) => {
+//   const product = await Product.findById(id);
+//   if (!product) throw new Error("Product not found");
+
+//   Object.assign(product, currProduct);
+
+//   if (currProduct.brand) {
+//     product.brand = { id: currProduct.brand.id, name: currProduct.brand.name };
+//   }
+//   if (currProduct.category) {
+//     product.category = {
+//       id: currProduct.category.id,
+//       name: currProduct.category.name,
+//     };
+//   }
+
+//   return await product.save();
+// };
 
 // Get reviewed products
 exports.getReviewsProducts = async () => {
@@ -212,12 +269,12 @@ exports.getReviewsProducts = async () => {
   return filteredProducts;
 };
 
-exports.getReviewsProducts = async () => {
-  return Product.find({
-    reviews: { $exists: true, $ne: [] },
-    status: "in-stock",
-  }).populate("reviews");
-};
+// exports.getReviewsProducts = async () => {
+//   return Product.find({
+//     reviews: { $exists: true, $ne: [] },
+//     status: "in-stock",
+//   }).populate("reviews");
+// };
 
 // Get out-of-stock products
 exports.getStockOutProducts = async () => {
@@ -227,6 +284,67 @@ exports.getStockOutProducts = async () => {
 // Delete a product
 exports.deleteProduct = async (id) => {
   return Product.findByIdAndDelete(id);
+};
+exports.syncProductIdsWithCategoriesService = async () => {
+  try {
+    // 1. Fetch all categories and their products
+    const categories = await Category.find().populate("products");
+    const allProductIds = await Product.find().distinct("_id"); // Get all product IDs
+
+    for (const category of categories) {
+      const validProductIds = new Set();
+      const productsToAdd = [];
+      const productsToRemove = [];
+
+      // 2. Check each product ID in the category
+      for (const product of category.products) {
+        if (allProductIds.some((id) => id.equals(product._id))) {
+          validProductIds.add(product._id.toString());
+        } else {
+          productsToRemove.push(product._id);
+        }
+      }
+
+      // 3. Identify products that *should* be in this category but aren't
+      const categoryProducts = await Product.find({
+        "category.id": category._id,
+      });
+      for (const product of categoryProducts) {
+        if (!validProductIds.has(product._id.toString())) {
+          productsToAdd.push(product._id);
+          validProductIds.add(product._id.toString()); // Add to the set to avoid duplicates in the update
+        }
+      }
+
+      // 4. Update the category's products array
+      const finalProductIds = Array.from(validProductIds);
+      await Category.updateOne(
+        { _id: category._id },
+        { $set: { products: finalProductIds } }
+      );
+      if (productsToAdd.length > 0 && productsToRemove.length > 0) {
+        console.log(
+          `Category ${category.parent} updated.  Products added: ${productsToAdd.length}, products removed: ${productsToRemove.length}, total products: ${finalProductIds.length}`
+        );
+      } else if (productsToAdd.length > 0) {
+        console.log(
+          `Category ${category.parent} updated.  Products added: ${productsToAdd.length}, total products: ${finalProductIds.length}`
+        );
+      } else if (productsToRemove.length > 0) {
+        console.log(
+          `Category ${category.parent} updated.  Products removed: ${productsToRemove.length}, total products: ${finalProductIds.length}`
+        );
+      } else {
+        console.log(
+          `Category ${category.parent} checked.  No changes needed, total products: ${finalProductIds.length}`
+        );
+      }
+    }
+    console.log("Product IDs in all categories synchronized.");
+  } catch (error) {
+    console.error("Error synchronizing product IDs with categories:", error);
+    throw error; // Re-throw the error to be handled by the caller
+  }
 };
 
 exports.clearExpiredDiscountsService = async () => {
@@ -379,75 +497,3 @@ exports.getFilteredPaginatedProductsService = async (query) => {
     throw new Error("Failed to retrieve products.");
   }
 };
-// exports.getFilteredPaginatedProductsService = async (query) => {
-//   try {
-//     const {
-//       skip = 0,
-//       take = 10,
-//       brand,
-//       category,
-//       productType,
-//       color,
-//       search,
-//       status,
-//       sortBy,
-//     } = query;
-
-//     const filter = {};
-//     const sortOptions = {};
-
-//     // Text-based filters (case-insensitive)
-//     if (brand) {
-//       filter["brand.name"] = { $regex: new RegExp(brand, "i") };
-//     }
-//     if (category) {
-//       filter["category.name"] = { $regex: new RegExp(category, "i") };
-//     }
-//     if (productType) {
-//       filter["productType.name"] = { $regex: new RegExp(productType, "i") };
-//     }
-//     if (color) {
-//       filter["color.name"] = { $regex: new RegExp(color, "i") };
-//     }
-//     if (search) {
-//       filter["title"] = { $regex: new RegExp(search, "i") };
-//     }
-//     if (status) {
-//       filter["status"] = status;
-//     }
-
-//     // Determine the sorting options
-//     if (sortBy) {
-//       switch (sortBy.toUpperCase()) {
-//         case "LTH":
-//           sortOptions.price = 1;
-//           break;
-//         case "HTL":
-//           sortOptions.price = -1;
-//           break;
-//         default:
-//           sortOptions.createdAt = -1;
-//       }
-//     } else {
-//       sortOptions.createdAt = -1; // This line is now necessary to handle the case where sortBy is not provided
-//     }
-
-//     // Fetch the products with pagination and sorting
-//     const products = await Product.find(filter)
-//       .sort(sortOptions)
-//       .skip(parseInt(skip, 10))
-//       .limit(parseInt(take, 10))
-//       .populate("reviews"); // Assuming you have a reviews relation
-
-//     // Count the total number of products matching filters
-//     const totalCount = await Product.countDocuments(filter);
-
-//     return {
-//       products,
-//       totalCount,
-//     };
-//   } catch (error) {
-//     console.error("Error in getFilteredPaginatedProductsService:", error);
-//     throw new Error("Failed to retrieve products."); // Or handle the error as needed
-//   }
-// };

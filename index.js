@@ -31,7 +31,10 @@ const tagRoutes = require("./routes/tag.routes");
 const featuredRoutes = require("./routes/featured.routes");
 // const uploadRouter = require('./routes/uploadFile.route');
 const cloudinaryRoutes = require("./routes/cloudinary.routes");
-const { clearExpiredDiscountsService } = require("./services/product.service");
+const {
+  clearExpiredDiscountsService,
+  syncProductIdsWithCategoriesService,
+} = require("./services/product.service");
 
 // middleware
 app.use(cors());
@@ -77,6 +80,11 @@ app.use((req, res, next) => {
     ],
   });
   next();
+});
+
+cron.schedule("30 0 * * *", async () => {
+  console.log("Running the category check job...");
+  await syncProductIdsWithCategoriesService();
 });
 
 cron.schedule("* 1 * * *", async () => {
