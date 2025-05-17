@@ -463,7 +463,10 @@ exports.getFilteredPaginatedProductsService = async (query) => {
     }
 
     // Determine the sorting options
-    if (sortBy) {
+    if (category) {
+      // If category is selected, sort by brand name ascending
+      sortOptions["brand.name"] = 1;
+    } else if (sortBy) {
       switch (sortBy.toUpperCase()) {
         case "LTH":
           sortOptions.price = 1;
