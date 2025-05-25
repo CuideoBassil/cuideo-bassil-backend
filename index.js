@@ -18,6 +18,7 @@ const globalErrorHandler = require("./middleware/global-error-handler");
 const userRoutes = require("./routes/user.routes");
 const categoryRoutes = require("./routes/category.routes");
 const brandRoutes = require("./routes/brand.routes");
+const pageRoutes = require("./routes/page.routes");
 const deliveryDistrictRoutes = require("./routes/deliveryDistrict.routes");
 const productsTypeRoutes = require("./routes/productType.routes");
 
@@ -48,6 +49,7 @@ connectDB();
 app.use("/api/user", userRoutes);
 app.use("/api/category", categoryRoutes);
 app.use("/api/brand", brandRoutes);
+app.use("/api/page", pageRoutes);
 app.use("/api/deliveryDistrict", deliveryDistrictRoutes);
 app.use("/api/productType", productsTypeRoutes);
 app.use("/api/product", productRoutes);
