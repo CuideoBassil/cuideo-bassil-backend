@@ -1,7 +1,7 @@
 const ApiError = require("../errors/api-error");
 const Order = require("../model/Order");
 const Products = require("../model/Products"); // <-- added import
-const DeliveryDistricts = require("../model/DeliveryDistrict");
+const DeliveryDistricts = require("../model/deliveryDistrict");
 const { sendEmail } = require("../config/email");
 
 // Create Order Service
