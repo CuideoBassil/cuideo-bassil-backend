@@ -16,9 +16,8 @@ const deliveryDistrictSchema = mongoose.Schema(
   }
 );
 
-const DeliveryDistrict = mongoose.model(
-  "DeliveryDistrict",
-  deliveryDistrictSchema
-);
+const DeliveryDistrict =
+  mongoose.models.DeliveryDistrict ||
+  mongoose.model("DeliveryDistrict", deliveryDistrictSchema);
 
 module.exports = DeliveryDistrict;

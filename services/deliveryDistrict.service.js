@@ -16,9 +16,7 @@ exports.addAllDeliveryDistrictService = async (data) => {
 
 // get all DeliveryDistricts service
 exports.getDeliveryDistrictsService = async () => {
-  const deliveryDistricts = await DeliveryDistrict.find({
-    status: "active",
-  }).populate("products");
+  const deliveryDistricts = await DeliveryDistrict.find();
   return deliveryDistricts;
 };
 
