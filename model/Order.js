@@ -18,7 +18,7 @@ const orderSchema = new mongoose.Schema(
     orderProducts: [
       {
         sku: { type: String, required: true },
-        quantity: { type: Number, required: true, min: 1 },
+        orderQuantity: { type: Number, required: true, min: 1 },
       },
     ],
     amount: {
@@ -59,6 +59,10 @@ const orderSchema = new mongoose.Schema(
       enum: ["cash on delivery", "visa"],
       default: "cash on delivery",
       lowercase: true,
+    },
+    invoice: {
+      type: Number,
+      unique: true,
     },
     status: {
       type: String,

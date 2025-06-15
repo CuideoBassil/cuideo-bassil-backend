@@ -271,7 +271,6 @@ exports.updateQuantities = async (req, res, next) => {
 
 exports.getFilteredPaginatedProducts = async (req, res) => {
   try {
-    console.log("GET /filtered/paginated hit");
     const products = await productServices.getFilteredPaginatedProductsService(
       req.query
     );

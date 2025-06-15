@@ -259,12 +259,10 @@ exports.getReviewsProducts = async () => {
     reviews: { $exists: true },
     status: "in-stock",
   }).populate("reviews");
-  console.log("products", products);
   // Filter out products where reviews array is empty
   const filteredProducts = products.filter(
     (product) => product.reviews.length > 0
   );
-  console.log("filteredProducts", filteredProducts);
 
   return filteredProducts;
 };

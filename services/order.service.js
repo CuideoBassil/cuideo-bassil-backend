@@ -14,9 +14,12 @@ exports.createOrderService = async (data) => {
     throw new ApiError(404, "Delivery district not found");
   }
 
-  // Add deliveryDistrict as populated object
-  data.deliveryDistrict = deliveryDistrict._id;
+  // Generate unique invoice number
+  let invoice = Date.now();
 
+  // Add deliveryDistrict and invoiceNumber
+  data.deliveryDistrict = deliveryDistrict._id;
+  data.invoice = invoice;
   // Create the order
   const order = await Order.create(data);
 
@@ -27,9 +30,10 @@ exports.createOrderService = async (data) => {
     text: `
 New Order Received!
 
+Invoice: ${order.invoice}
 Name: ${order.fullName}
 Phone: ${order.phoneNumber}
-Email: ${order?.emailAddress ? order.emailAddress : "Not provided"}
+Email: ${order?.emailAddress || "Not provided"}
 Products:\n ${data.orderProducts
       .map(
         (p, index) =>
@@ -51,14 +55,13 @@ Please check the admin dashboard for more details.
     `,
   };
 
-  // Send email notification, catch errors but don't block order creation
+  // Send email
   try {
     sendEmail(emailBody);
   } catch (error) {
     console.error("Failed to send order notification email:", error.message);
   }
 
-  // Return the order data for frontend to build WhatsApp message
   return order;
 };
 
@@ -81,19 +84,19 @@ exports.getOrderByIdService = async (id) => {
         "title brand.name color.name price discount"
       );
       if (!product) {
-        return { sku: item.sku, quantity: item.quantity };
+        return { sku: item.sku, quantity: item.orderQuantity };
       }
 
       return {
         sku: item.sku,
-        quantity: item.quantity,
+        quantity: item.orderQuantity,
         title: product.title,
         brandName: product.brand?.name || null,
         colorName: product.color?.name || null,
         price: product.price,
         discountedPrice:
           product.discount && product.discount > 0
-            ? product.price - product.discount
+            ? product.discount
             : product.price,
       };
     })
