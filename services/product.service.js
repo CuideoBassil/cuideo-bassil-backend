@@ -377,7 +377,11 @@ module.exports.updateQuantitiesService = async (updates) => {
     throw new Error("Updates should be an array.");
   }
   for (const update of updates) {
-    if (update.sku == "FFB8259SBS") {
+    console.log(`${update.sku}`);
+    if (update.sku == "MSF24") {
+      console.log(`SKU: ${update.sku}, Quantity: ${update.quantity}`);
+    }
+    if (update.sku == "AC13INV/G") {
       console.log(`SKU: ${update.sku}, Quantity: ${update.quantity}`);
     }
   }
