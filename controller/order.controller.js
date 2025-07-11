@@ -6,6 +6,7 @@ const {
   getOrdersService,
   getOrderByIdService,
   updateOrderStatusService,
+  getPendingOrdersService,
 } = require("../services/order.service");
 
 // create-payment-intent
@@ -84,6 +85,19 @@ exports.updateOrderStatus = async (req, res, next) => {
       success: true,
       message: "Status updated successfully",
       order: updatedOrder,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+//get pending orders
+exports.getPendingOrders = async (req, res, next) => {
+  try {
+    const orders = await getPendingOrdersService();
+    res.status(200).json({
+      success: true,
+      data: orders,
     });
   } catch (error) {
     next(error);

@@ -128,3 +128,7 @@ exports.deleteOrderService = async (id) => {
   }
   return order;
 };
+// Get only pending orders
+exports.getPendingOrdersService = async () => {
+  return await Order.find({ status: "pending" }).populate("deliveryDistrict");
+};
