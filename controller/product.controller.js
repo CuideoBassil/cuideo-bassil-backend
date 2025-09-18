@@ -251,23 +251,44 @@ exports.deleteProduct = async (req, res, next) => {
 
 // Update product quantities
 exports.updateQuantities = async (req, res, next) => {
-  const updates = req.body;
-
-  if (!Array.isArray(updates)) {
-    return res
-      .status(400)
-      .json({ error: "Invalid data format. Expected an array of objects." });
-  }
-
   try {
+    const updates = req.body;
+
+    if (!Array.isArray(updates)) {
+      return res.status(400).json({
+        error: "Invalid data format. Expected an array of objects.",
+      });
+    }
+
     await productServices.updateQuantitiesService(updates);
-    res
-      .status(200)
-      .json({ success: true, message: "Quantities updated successfully." });
+
+    return res.status(200).json({
+      success: true,
+      message: `Processed ${updates.length} updates.`,
+    });
   } catch (error) {
     next(error);
   }
 };
+
+// exports.updateQuantities = async (req, res, next) => {
+//   const updates = req.body;
+
+//   if (!Array.isArray(updates)) {
+//     return res
+//       .status(400)
+//       .json({ error: "Invalid data format. Expected an array of objects." });
+//   }
+
+//   try {
+//     await productServices.updateQuantitiesService(updates);
+//     res
+//       .status(200)
+//       .json({ success: true, message: "Quantities updated successfully." });
+//   } catch (error) {
+//     next(error);
+//   }
+// };
 
 exports.getFilteredPaginatedProducts = async (req, res) => {
   try {

@@ -285,65 +285,150 @@ exports.deleteProduct = async (id) => {
 };
 exports.syncProductIdsWithCategoriesService = async () => {
   try {
-    // 1. Fetch all categories and their products
-    const categories = await Category.find().populate("products");
-    const allProductIds = await Product.find().distinct("_id"); // Get all product IDs
+    // Fetch all categories without populating (we only need product IDs here)
+    const categories = await Category.find({}, { products: 1, parent: 1 });
 
+    // Fetch product IDs grouped by category in a single query
+    const productsByCategory = await Product.aggregate([
+      {
+        $group: {
+          _id: "$category.id", // group by category ID
+          productIds: { $addToSet: "$_id" }, // collect product IDs
+        },
+      },
+    ]);
+
+    // Convert aggregation result to a map
+    const categoryToProducts = new Map();
+    for (const entry of productsByCategory) {
+      categoryToProducts.set(entry._id?.toString(), entry.productIds);
+    }
+
+    // Process each category
     for (const category of categories) {
-      const validProductIds = new Set();
-      const productsToAdd = [];
-      const productsToRemove = [];
-
-      // 2. Check each product ID in the category
-      for (const product of category.products) {
-        if (allProductIds.some((id) => id.equals(product._id))) {
-          validProductIds.add(product._id.toString());
-        } else {
-          productsToRemove.push(product._id);
-        }
-      }
-
-      // 3. Identify products that *should* be in this category but aren't
-      const categoryProducts = await Product.find({
-        "category.id": category._id,
-      });
-      for (const product of categoryProducts) {
-        if (!validProductIds.has(product._id.toString())) {
-          productsToAdd.push(product._id);
-          validProductIds.add(product._id.toString()); // Add to the set to avoid duplicates in the update
-        }
-      }
-
-      // 4. Update the category's products array
-      const finalProductIds = Array.from(validProductIds);
-      await Category.updateOne(
-        { _id: category._id },
-        { $set: { products: finalProductIds } }
+      const currentProductIds = new Set(
+        category.products.map((id) => id.toString())
       );
+      const validProductIds = new Set();
+      const productsToRemove = [];
+      const productsToAdd = [];
+
+      // Keep only valid products (exist in DB)
+      for (const productId of currentProductIds) {
+        if (await Product.exists({ _id: productId })) {
+          validProductIds.add(productId);
+        } else {
+          productsToRemove.push(productId);
+        }
+      }
+
+      // Add missing products for this category
+      const expectedProducts =
+        categoryToProducts.get(category._id.toString()) || [];
+      for (const productId of expectedProducts) {
+        if (!validProductIds.has(productId.toString())) {
+          validProductIds.add(productId.toString());
+          productsToAdd.push(productId);
+        }
+      }
+
+      // Update only if something changed
+      const finalProductIds = Array.from(validProductIds);
+      if (
+        productsToAdd.length > 0 ||
+        productsToRemove.length > 0 ||
+        finalProductIds.length !== category.products.length
+      ) {
+        await Category.updateOne(
+          { _id: category._id },
+          { $set: { products: finalProductIds } }
+        );
+      }
+
+      // Logging
       if (productsToAdd.length > 0 && productsToRemove.length > 0) {
         console.log(
-          `Category ${category.parent} updated.  Products added: ${productsToAdd.length}, products removed: ${productsToRemove.length}, total products: ${finalProductIds.length}`
+          `Category ${category.parent} updated. Added: ${productsToAdd.length}, removed: ${productsToRemove.length}, total: ${finalProductIds.length}`
         );
       } else if (productsToAdd.length > 0) {
         console.log(
-          `Category ${category.parent} updated.  Products added: ${productsToAdd.length}, total products: ${finalProductIds.length}`
+          `Category ${category.parent} updated. Added: ${productsToAdd.length}, total: ${finalProductIds.length}`
         );
       } else if (productsToRemove.length > 0) {
         console.log(
-          `Category ${category.parent} updated.  Products removed: ${productsToRemove.length}, total products: ${finalProductIds.length}`
-        );
-      } else {
-        console.log(
-          `Category ${category.parent} checked.  No changes needed, total products: ${finalProductIds.length}`
+          `Category ${category.parent} updated. Removed: ${productsToRemove.length}, total: ${finalProductIds.length}`
         );
       }
     }
-    console.log("Product IDs in all categories synchronized.");
+
+    console.log("✅ Product IDs in all categories synchronized.");
   } catch (error) {
-    console.error("Error synchronizing product IDs with categories:", error);
-    throw error; // Re-throw the error to be handled by the caller
+    console.error("❌ Error synchronizing product IDs with categories:", error);
+    throw error;
   }
 };
+
+// exports.syncProductIdsWithCategoriesService = async () => {
+//   try {
+//     // 1. Fetch all categories and their products
+//     const categories = await Category.find().populate("products");
+//     const allProductIds = await Product.find().distinct("_id"); // Get all product IDs
+
+//     for (const category of categories) {
+//       const validProductIds = new Set();
+//       const productsToAdd = [];
+//       const productsToRemove = [];
+
+//       // 2. Check each product ID in the category
+//       for (const product of category.products) {
+//         if (allProductIds.some((id) => id.equals(product._id))) {
+//           validProductIds.add(product._id.toString());
+//         } else {
+//           productsToRemove.push(product._id);
+//         }
+//       }
+
+//       // 3. Identify products that *should* be in this category but aren't
+//       const categoryProducts = await Product.find({
+//         "category.id": category._id,
+//       });
+//       for (const product of categoryProducts) {
+//         if (!validProductIds.has(product._id.toString())) {
+//           productsToAdd.push(product._id);
+//           validProductIds.add(product._id.toString()); // Add to the set to avoid duplicates in the update
+//         }
+//       }
+
+//       // 4. Update the category's products array
+//       const finalProductIds = Array.from(validProductIds);
+//       await Category.updateOne(
+//         { _id: category._id },
+//         { $set: { products: finalProductIds } }
+//       );
+//       if (productsToAdd.length > 0 && productsToRemove.length > 0) {
+//         console.log(
+//           `Category ${category.parent} updated.  Products added: ${productsToAdd.length}, products removed: ${productsToRemove.length}, total products: ${finalProductIds.length}`
+//         );
+//       } else if (productsToAdd.length > 0) {
+//         console.log(
+//           `Category ${category.parent} updated.  Products added: ${productsToAdd.length}, total products: ${finalProductIds.length}`
+//         );
+//       } else if (productsToRemove.length > 0) {
+//         console.log(
+//           `Category ${category.parent} updated.  Products removed: ${productsToRemove.length}, total products: ${finalProductIds.length}`
+//         );
+//       } else {
+//         console.log(
+//           `Category ${category.parent} checked.  No changes needed, total products: ${finalProductIds.length}`
+//         );
+//       }
+//     }
+//     console.log("Product IDs in all categories synchronized.");
+//   } catch (error) {
+//     console.error("Error synchronizing product IDs with categories:", error);
+//     throw error; // Re-throw the error to be handled by the caller
+//   }
+// };
 
 exports.clearExpiredDiscountsService = async () => {
   try {
@@ -376,43 +461,125 @@ module.exports.updateQuantitiesService = async (updates) => {
   if (!Array.isArray(updates)) {
     throw new Error("Updates should be an array.");
   }
-  for (const update of updates) {
-    console.log(`${update.sku}`);
-    if (update.sku == "MSF24") {
-      console.log(`SKU: ${update.sku}, Quantity: ${update.quantity}`);
-    }
-    if (update.sku == "AC13INV/G") {
-      console.log(`SKU: ${update.sku}, Quantity: ${update.quantity}`);
-    }
-  }
-  console.log("number of updates", updates.length);
 
   if (updates.length === 0) {
     console.warn("No updates provided.");
     return;
   }
 
-  const bulkOperations = updates
-    .filter((update) => update.sku && typeof update.quantity === "number")
-    .map((update) => ({
-      updateOne: {
-        filter: { sku: update.sku },
-        update: {
-          $set: {
-            quantity: update.quantity,
-            status: update.quantity > 0 ? "in-stock" : "out-of-stock",
-          },
+  // Deduplicate by SKU (last update wins if multiple updates in the same batch)
+  const latestUpdates = updates.reduce((map, update) => {
+    if (update.sku && typeof update.quantity === "number") {
+      map.set(update.sku, update);
+    }
+    return map;
+  }, new Map());
+
+  const bulkOperations = Array.from(latestUpdates.values()).map((update) => ({
+    updateOne: {
+      filter: { sku: update.sku },
+      update: {
+        $set: {
+          quantity: update.quantity,
+          status: update.quantity > 0 ? "in-stock" : "out-of-stock",
         },
       },
-    }));
+      upsert: false, // don’t create new products accidentally
+    },
+  }));
 
   if (bulkOperations.length === 0) {
     console.warn("No valid updates found.");
     return;
   }
 
-  await Product.bulkWrite(bulkOperations);
+  // Break into smaller chunks to avoid Mongo write lock issues
+  const chunkSize = 200; // tweak based on DB performance
+  let totalProcessed = 0;
+  let totalFailed = 0;
+  const failedSkus = [];
+
+  for (let i = 0; i < bulkOperations.length; i += chunkSize) {
+    const chunk = bulkOperations.slice(i, i + chunkSize);
+
+    try {
+      const result = await Product.bulkWrite(chunk, { ordered: false });
+
+      const successCount = result.nModified || result.modifiedCount || 0;
+      const matchedCount = result.nMatched || result.matchedCount || 0;
+      const upsertedCount = result.upsertedCount || 0;
+
+      totalProcessed += successCount;
+
+      console.log(
+        `✅ Chunk ${
+          i / chunkSize + 1
+        }: matched ${matchedCount}, updated ${successCount}, upserted ${upsertedCount}`
+      );
+    } catch (err) {
+      totalFailed += chunk.length;
+      const skus = chunk.map((op) => op.updateOne.filter.sku);
+      failedSkus.push(...skus);
+
+      console.error(
+        `❌ Chunk ${i / chunkSize + 1} failed. ${
+          chunk.length
+        } updates skipped. SKUs: ${skus.join(", ")}`
+      );
+    }
+  }
+
+  console.log(`Processed ${bulkOperations.length} updates total.`);
+  if (totalFailed > 0) {
+    console.warn(
+      `⚠️ ${totalFailed} updates failed. Affected SKUs: ${failedSkus.join(
+        ", "
+      )}`
+    );
+  }
 };
+
+// module.exports.updateQuantitiesService = async (updates) => {
+//   if (!Array.isArray(updates)) {
+//     throw new Error("Updates should be an array.");
+//   }
+//   for (const update of updates) {
+//     console.log(`${update.sku}`);
+//     if (update.sku == "MSF24") {
+//       console.log(`SKU: ${update.sku}, Quantity: ${update.quantity}`);
+//     }
+//     if (update.sku == "AC13INV/G") {
+//       console.log(`SKU: ${update.sku}, Quantity: ${update.quantity}`);
+//     }
+//   }
+//   console.log("number of updates", updates.length);
+
+//   if (updates.length === 0) {
+//     console.warn("No updates provided.");
+//     return;
+//   }
+
+//   const bulkOperations = updates
+//     .filter((update) => update.sku && typeof update.quantity === "number")
+//     .map((update) => ({
+//       updateOne: {
+//         filter: { sku: update.sku },
+//         update: {
+//           $set: {
+//             quantity: update.quantity,
+//             status: update.quantity > 0 ? "in-stock" : "out-of-stock",
+//           },
+//         },
+//       },
+//     }));
+
+//   if (bulkOperations.length === 0) {
+//     console.warn("No valid updates found.");
+//     return;
+//   }
+
+//   await Product.bulkWrite(bulkOperations);
+// };
 exports.getFilteredPaginatedProductsService = async (query) => {
   try {
     const {
