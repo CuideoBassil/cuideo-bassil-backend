@@ -467,6 +467,14 @@ module.exports.updateQuantitiesService = async (updates) => {
     return;
   }
 
+  // 🔎 Check for specific SKUs in incoming updates
+  const specialSkus = ["MSF24", "AC13INV/G"];
+  const foundSpecials = updates.filter((u) => specialSkus.includes(u.sku));
+
+  if (foundSpecials.length > 0) {
+    console.log("🚨 Special SKUs detected in update payload:", foundSpecials);
+  }
+
   // Deduplicate by SKU (last update wins if multiple updates in the same batch)
   const latestUpdates = updates.reduce((map, update) => {
     if (update.sku && typeof update.quantity === "number") {
@@ -669,3 +677,96 @@ exports.getFilteredPaginatedProductsService = async (query) => {
     throw new Error("Failed to retrieve products.");
   }
 };
+
+// exports.getFilteredPaginatedProductsService = async (query) => {
+//   try {
+//     // Parse pagination params safely
+//     const skip = Math.max(parseInt(query.skip, 10) || 0, 0);
+//     const take = Math.min(parseInt(query.take, 10) || 10, 100); // cap page size
+
+//     const { brand, category, productType, color, search, status, sortBy } =
+//       query;
+
+//     const filter = {};
+//     const sortOptions = {};
+
+//     // -------------------------
+//     // 1️⃣ Apply filters
+//     // -------------------------
+//     if (brand) filter["brand.name"] = new RegExp(`^${brand}$`, "i");
+//     if (category) filter["category.name"] = new RegExp(`^${category}$`, "i");
+//     if (productType)
+//       filter["productType.name"] = new RegExp(`^${productType}$`, "i");
+//     if (color) filter["color.name"] = new RegExp(`^${color}$`, "i");
+//     if (status) filter.status = status;
+
+//     // -------------------------
+//     // 2️⃣ Global search
+//     // -------------------------
+//     if (search) {
+//       const searchRegex = new RegExp(search, "i");
+//       filter.$or = [
+//         { title: searchRegex },
+//         { "brand.name": searchRegex },
+//         { "category.name": searchRegex },
+//         { "color.name": searchRegex },
+//         { "color.code": searchRegex },
+//         { "productType.name": searchRegex },
+//         { description: searchRegex },
+//         { additionalInformation: searchRegex },
+//         { tags: searchRegex },
+//         { sku: searchRegex },
+//         { unit: searchRegex },
+//       ];
+//     }
+
+//     // -------------------------
+//     // 3️⃣ Sorting (stable)
+//     // -------------------------
+//     if (category) {
+//       sortOptions["brand.name"] = 1;
+//       sortOptions["_id"] = 1; // ensure stability
+//     } else if (sortBy) {
+//       switch (sortBy.toUpperCase()) {
+//         case "LTH":
+//           sortOptions.price = 1;
+//           sortOptions["_id"] = 1;
+//           break;
+//         case "HTL":
+//           sortOptions.price = -1;
+//           sortOptions["_id"] = 1;
+//           break;
+//         default:
+//           sortOptions.createdAt = -1;
+//           sortOptions["_id"] = 1;
+//       }
+//     } else {
+//       sortOptions.createdAt = -1;
+//       sortOptions["_id"] = 1;
+//     }
+
+//     // -------------------------
+//     // 4️⃣ Query + Count (parallel)
+//     // -------------------------
+//     const [products, totalCount] = await Promise.all([
+//       Product.find(filter)
+//         .sort(sortOptions)
+//         .skip(skip)
+//         .limit(take)
+//         .populate("reviews")
+//         .lean(),
+//       Product.countDocuments(filter),
+//     ]);
+
+//     return {
+//       products,
+//       totalCount,
+//       skip,
+//       take,
+//       totalPages: Math.ceil(totalCount / take),
+//     };
+//   } catch (error) {
+//     console.error("Error in getFilteredPaginatedProductsService:", error);
+//     throw new Error("Failed to retrieve products.");
+//   }
+// };
