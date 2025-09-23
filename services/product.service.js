@@ -421,6 +421,8 @@ module.exports.updateQuantitiesService = async (updates) => {
 
   for (let i = 0; i < bulkOperations.length; i += chunkSize) {
     const chunk = bulkOperations.slice(i, i + chunkSize);
+    const chunkSkus = chunk.map((op) => op.updateOne.filter.sku);
+    console.log(`📦 All SKUs in this chunk: ${chunkSkus.join(", ")}`);
 
     try {
       const result = await Product.bulkWrite(chunk, { ordered: false });
@@ -433,18 +435,17 @@ module.exports.updateQuantitiesService = async (updates) => {
 
       console.log(
         `✅ Chunk ${
-          i / chunkSize + 1
+          Math.floor(i / chunkSize) + 1
         }: matched ${matchedCount}, updated ${successCount}, upserted ${upsertedCount}`
       );
     } catch (err) {
       totalFailed += chunk.length;
-      const skus = chunk.map((op) => op.updateOne.filter.sku);
-      failedSkus.push(...skus);
+      failedSkus.push(...chunkSkus);
 
       console.error(
-        `❌ Chunk ${i / chunkSize + 1} failed. ${
+        `❌ Chunk ${Math.floor(i / chunkSize) + 1} failed. ${
           chunk.length
-        } updates skipped. SKUs: ${skus.join(", ")}`
+        } updates skipped. SKUs: ${chunkSkus.join(", ")}`
       );
     }
   }
