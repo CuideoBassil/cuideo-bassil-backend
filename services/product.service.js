@@ -470,7 +470,9 @@ module.exports.updateQuantitiesService = async (updates) => {
   // 🔎 Check for specific SKUs in incoming updates
   const specialSkus = ["MSF24", "AC13INV/G"];
   const foundSpecials = updates.filter((u) => specialSkus.includes(u.sku));
-
+  // Log all SKUs from the incoming updates
+  const allSkus = updates.map((u) => u.sku).filter(Boolean);
+  console.log("Incoming SKUs:", allSkus);
   if (foundSpecials.length > 0) {
     console.log("🚨 Special SKUs detected in update payload:", foundSpecials);
   }
