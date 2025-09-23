@@ -234,24 +234,6 @@ exports.updateProductService = async (id, currProduct) => {
     throw error;
   }
 };
-// exports.updateProductService = async (id, currProduct) => {
-//   const product = await Product.findById(id);
-//   if (!product) throw new Error("Product not found");
-
-//   Object.assign(product, currProduct);
-
-//   if (currProduct.brand) {
-//     product.brand = { id: currProduct.brand.id, name: currProduct.brand.name };
-//   }
-//   if (currProduct.category) {
-//     product.category = {
-//       id: currProduct.category.id,
-//       name: currProduct.category.name,
-//     };
-//   }
-
-//   return await product.save();
-// };
 
 // Get reviewed products
 exports.getReviewsProducts = async () => {
@@ -266,13 +248,6 @@ exports.getReviewsProducts = async () => {
 
   return filteredProducts;
 };
-
-// exports.getReviewsProducts = async () => {
-//   return Product.find({
-//     reviews: { $exists: true, $ne: [] },
-//     status: "in-stock",
-//   }).populate("reviews");
-// };
 
 // Get out-of-stock products
 exports.getStockOutProducts = async () => {
@@ -368,68 +343,6 @@ exports.syncProductIdsWithCategoriesService = async () => {
   }
 };
 
-// exports.syncProductIdsWithCategoriesService = async () => {
-//   try {
-//     // 1. Fetch all categories and their products
-//     const categories = await Category.find().populate("products");
-//     const allProductIds = await Product.find().distinct("_id"); // Get all product IDs
-
-//     for (const category of categories) {
-//       const validProductIds = new Set();
-//       const productsToAdd = [];
-//       const productsToRemove = [];
-
-//       // 2. Check each product ID in the category
-//       for (const product of category.products) {
-//         if (allProductIds.some((id) => id.equals(product._id))) {
-//           validProductIds.add(product._id.toString());
-//         } else {
-//           productsToRemove.push(product._id);
-//         }
-//       }
-
-//       // 3. Identify products that *should* be in this category but aren't
-//       const categoryProducts = await Product.find({
-//         "category.id": category._id,
-//       });
-//       for (const product of categoryProducts) {
-//         if (!validProductIds.has(product._id.toString())) {
-//           productsToAdd.push(product._id);
-//           validProductIds.add(product._id.toString()); // Add to the set to avoid duplicates in the update
-//         }
-//       }
-
-//       // 4. Update the category's products array
-//       const finalProductIds = Array.from(validProductIds);
-//       await Category.updateOne(
-//         { _id: category._id },
-//         { $set: { products: finalProductIds } }
-//       );
-//       if (productsToAdd.length > 0 && productsToRemove.length > 0) {
-//         console.log(
-//           `Category ${category.parent} updated.  Products added: ${productsToAdd.length}, products removed: ${productsToRemove.length}, total products: ${finalProductIds.length}`
-//         );
-//       } else if (productsToAdd.length > 0) {
-//         console.log(
-//           `Category ${category.parent} updated.  Products added: ${productsToAdd.length}, total products: ${finalProductIds.length}`
-//         );
-//       } else if (productsToRemove.length > 0) {
-//         console.log(
-//           `Category ${category.parent} updated.  Products removed: ${productsToRemove.length}, total products: ${finalProductIds.length}`
-//         );
-//       } else {
-//         console.log(
-//           `Category ${category.parent} checked.  No changes needed, total products: ${finalProductIds.length}`
-//         );
-//       }
-//     }
-//     console.log("Product IDs in all categories synchronized.");
-//   } catch (error) {
-//     console.error("Error synchronizing product IDs with categories:", error);
-//     throw error; // Re-throw the error to be handled by the caller
-//   }
-// };
-
 exports.clearExpiredDiscountsService = async () => {
   try {
     const expiredProducts = await Product.find({
@@ -467,17 +380,14 @@ module.exports.updateQuantitiesService = async (updates) => {
     return;
   }
 
-  // 🔎 Check for specific SKUs in incoming updates
-  const specialSkus = ["MSF24", "AC13INV/G"];
+  // Check for specific SKUs in incoming updates
+  const specialSkus = ["MSF24", "AC13INV/G", "FFB8259SBS", "LED32HHL"];
   const foundSpecials = updates.filter((u) => specialSkus.includes(u.sku));
-  // Log all SKUs from the incoming updates
-  const allSkus = updates.map((u) => u.sku).filter(Boolean);
-  console.log("Incoming SKUs:", allSkus);
+
   if (foundSpecials.length > 0) {
     console.log("🚨 Special SKUs detected in update payload:", foundSpecials);
   }
 
-  // Deduplicate by SKU (last update wins if multiple updates in the same batch)
   const latestUpdates = updates.reduce((map, update) => {
     if (update.sku && typeof update.quantity === "number") {
       map.set(update.sku, update);
@@ -494,7 +404,7 @@ module.exports.updateQuantitiesService = async (updates) => {
           status: update.quantity > 0 ? "in-stock" : "out-of-stock",
         },
       },
-      upsert: false, // don’t create new products accidentally
+      upsert: false,
     },
   }));
 
@@ -504,7 +414,7 @@ module.exports.updateQuantitiesService = async (updates) => {
   }
 
   // Break into smaller chunks to avoid Mongo write lock issues
-  const chunkSize = 200; // tweak based on DB performance
+  const chunkSize = 100; // tweak based on DB performance
   let totalProcessed = 0;
   let totalFailed = 0;
   const failedSkus = [];
@@ -549,47 +459,6 @@ module.exports.updateQuantitiesService = async (updates) => {
   }
 };
 
-// module.exports.updateQuantitiesService = async (updates) => {
-//   if (!Array.isArray(updates)) {
-//     throw new Error("Updates should be an array.");
-//   }
-//   for (const update of updates) {
-//     console.log(`${update.sku}`);
-//     if (update.sku == "MSF24") {
-//       console.log(`SKU: ${update.sku}, Quantity: ${update.quantity}`);
-//     }
-//     if (update.sku == "AC13INV/G") {
-//       console.log(`SKU: ${update.sku}, Quantity: ${update.quantity}`);
-//     }
-//   }
-//   console.log("number of updates", updates.length);
-
-//   if (updates.length === 0) {
-//     console.warn("No updates provided.");
-//     return;
-//   }
-
-//   const bulkOperations = updates
-//     .filter((update) => update.sku && typeof update.quantity === "number")
-//     .map((update) => ({
-//       updateOne: {
-//         filter: { sku: update.sku },
-//         update: {
-//           $set: {
-//             quantity: update.quantity,
-//             status: update.quantity > 0 ? "in-stock" : "out-of-stock",
-//           },
-//         },
-//       },
-//     }));
-
-//   if (bulkOperations.length === 0) {
-//     console.warn("No valid updates found.");
-//     return;
-//   }
-
-//   await Product.bulkWrite(bulkOperations);
-// };
 exports.getFilteredPaginatedProductsService = async (query) => {
   try {
     const {
