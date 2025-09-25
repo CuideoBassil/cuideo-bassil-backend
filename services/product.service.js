@@ -380,85 +380,402 @@ module.exports.updateQuantitiesService = async (updates) => {
     return;
   }
 
-  // Check for specific SKUs in incoming updates
-  const specialSkus = ["MSF24", "AC13INV/G", "FFB8259SBS", "LED32HHL"];
-  const foundSpecials = updates.filter((u) => specialSkus.includes(u.sku));
+  // Normalize SKU (trim + uppercase to avoid mismatches)
+  const normalizeSku = (sku) =>
+    typeof sku === "string" ? sku.trim().toUpperCase() : "";
 
-  if (foundSpecials.length > 0) {
-    console.log("🚨 Special SKUs detected in update payload:", foundSpecials);
+  // Prepare updates
+  const preparedUpdates = updates
+    .map((u) => {
+      const sku = normalizeSku(u.sku);
+      let qty = u.quantity;
+
+      if (!sku) return null;
+      if (typeof qty !== "number") {
+        const parsed = Number(qty);
+        if (Number.isNaN(parsed)) return null;
+        qty = parsed;
+      }
+      return { sku, quantity: qty };
+    })
+    .filter(Boolean);
+
+  const totalIncoming = preparedUpdates.length;
+  console.log(`📥 Incoming items: ${totalIncoming}`);
+
+  // Log all incoming SKUs in batches of 100
+  for (let i = 0; i < preparedUpdates.length; i += 100) {
+    console.log(
+      `📦 Incoming SKUs batch ${Math.floor(i / 100) + 1}:`,
+      preparedUpdates
+        .slice(i, i + 100)
+        .map((u) => u.sku)
+        .join(", ")
+    );
   }
 
-  const latestUpdates = updates.reduce((map, update) => {
-    if (update.sku && typeof update.quantity === "number") {
-      map.set(update.sku, update);
-    }
-    return map;
-  }, new Map());
+  // Pre-check DB for existing SKUs
+  const existingDocs = await Product.find(
+    { sku: { $in: preparedUpdates.map((u) => u.sku) } },
+    { sku: 1 }
+  ).lean();
 
-  const bulkOperations = Array.from(latestUpdates.values()).map((update) => ({
-    updateOne: {
-      filter: { sku: update.sku },
-      update: {
-        $set: {
-          quantity: update.quantity,
-          status: update.quantity > 0 ? "in-stock" : "out-of-stock",
+  const existingSkus = new Set(existingDocs.map((d) => normalizeSku(d.sku)));
+  const notInDb = preparedUpdates
+    .map((u) => u.sku)
+    .filter((sku) => !existingSkus.has(sku));
+
+  if (notInDb.length > 0) {
+    console.warn(`⚠️ ${notInDb.length} SKUs not found in DB.`);
+    for (let i = 0; i < notInDb.length; i += 100) {
+      console.warn(
+        `⚠️ Missing SKUs batch ${Math.floor(i / 100) + 1}:`,
+        notInDb.slice(i, i + 100).join(", ")
+      );
+    }
+  }
+
+  // Build update operations only for SKUs found in DB
+  const bulkOperations = preparedUpdates
+    .filter((u) => existingSkus.has(u.sku))
+    .map((update) => ({
+      updateOne: {
+        filter: { sku: update.sku },
+        update: {
+          $set: {
+            quantity: update.quantity,
+            status: update.quantity > 0 ? "in-stock" : "out-of-stock",
+          },
         },
+        upsert: false,
       },
-      upsert: false,
-    },
-  }));
+    }));
 
   if (bulkOperations.length === 0) {
-    console.warn("No valid updates found.");
+    console.warn("No valid updates found in DB.");
     return;
   }
 
-  // Break into smaller chunks to avoid Mongo write lock issues
-  const chunkSize = 100; // tweak based on DB performance
-  let totalProcessed = 0;
-  let totalFailed = 0;
-  const failedSkus = [];
-
+  // Run bulkWrite in chunks of 100
+  const chunkSize = 100;
   for (let i = 0; i < bulkOperations.length; i += chunkSize) {
     const chunk = bulkOperations.slice(i, i + chunkSize);
-    const chunkSkus = chunk.map((op) => op.updateOne.filter.sku);
-    console.log(`📦 All SKUs in this chunk: ${chunkSkus.join(", ")}`);
-
-    try {
-      const result = await Product.bulkWrite(chunk, { ordered: false });
-
-      const successCount = result.nModified || result.modifiedCount || 0;
-      const matchedCount = result.nMatched || result.matchedCount || 0;
-      const upsertedCount = result.upsertedCount || 0;
-
-      totalProcessed += successCount;
-
-      console.log(
-        `✅ Chunk ${
-          Math.floor(i / chunkSize) + 1
-        }: matched ${matchedCount}, updated ${successCount}, upserted ${upsertedCount}`
-      );
-    } catch (err) {
-      totalFailed += chunk.length;
-      failedSkus.push(...chunkSkus);
-
-      console.error(
-        `❌ Chunk ${Math.floor(i / chunkSize) + 1} failed. ${
-          chunk.length
-        } updates skipped. SKUs: ${chunkSkus.join(", ")}`
-      );
-    }
+    await Product.bulkWrite(chunk, { ordered: false });
   }
 
-  console.log(`Processed ${bulkOperations.length} updates total.`);
-  if (totalFailed > 0) {
-    console.warn(
-      `⚠️ ${totalFailed} updates failed. Affected SKUs: ${failedSkus.join(
-        ", "
-      )}`
-    );
-  }
+  console.log(`✅ Updated ${bulkOperations.length} items in DB.`);
 };
+
+// Optimized updateQuantitiesService
+// module.exports.updateQuantitiesService = async (
+//   updates,
+//   { chunkSize = 100, allowUpsert = false } = {}
+// ) => {
+//   if (!Array.isArray(updates)) {
+//     throw new Error("Updates should be an array.");
+//   }
+//   if (updates.length === 0) {
+//     console.warn("No updates provided.");
+//     return {
+//       received: 0,
+//       deduped: 0,
+//       existing: 0,
+//       updated: 0,
+//       missing: 0,
+//       failed: 0,
+//       missingSkus: [],
+//       failedSkus: [],
+//     };
+//   }
+
+//   // 1) Normalize and validate input, keep index for debugging
+//   const normalized = updates
+//     .map((u, idx) => {
+//       const skuRaw = (u && (u.sku ?? u.SKU ?? u.Sku)) || "";
+//       const sku =
+//         typeof skuRaw === "string" ? skuRaw.trim().toUpperCase() : undefined;
+//       const quantity =
+//         typeof u.quantity === "number" ? u.quantity : Number(u.quantity) || NaN;
+//       return { origIndex: idx, raw: u, sku, quantity };
+//     })
+//     .filter((u) => u.sku && Number.isFinite(u.quantity));
+
+//   // 2) Deduplicate by SKU (last wins)
+//   const map = new Map();
+//   for (const u of normalized) map.set(u.sku, u);
+//   const deduped = Array.from(map.values());
+
+//   // 3) Optional: log special SKUs (using normalized comparison)
+//   const specialSkus = ["MSF24", "AC13INV/G", "FFB8259SBS", "LED32HHL"].map(
+//     (s) => s.trim().toUpperCase()
+//   );
+//   const foundSpecials = deduped.filter((u) => specialSkus.includes(u.sku));
+//   if (foundSpecials.length > 0) {
+//     console.log(
+//       "🚨 Special SKUs detected in update payload:",
+//       foundSpecials.map((s) => ({ sku: s.sku, quantity: s.quantity }))
+//     );
+//   }
+
+//   // 4) Pre-query DB to know which SKUs exist
+//   const allSkus = deduped.map((d) => d.sku);
+//   // Using Product.find + distinct is efficient and tells which SKUs are present
+//   const existingSkus = await Product.find({ sku: { $in: allSkus } }).distinct(
+//     "sku"
+//   );
+//   const existingSet = new Set(
+//     existingSkus.map((s) => String(s).trim().toUpperCase())
+//   );
+
+//   const toUpdate = deduped.filter((d) => existingSet.has(d.sku));
+//   const missing = deduped.filter((d) => !existingSet.has(d.sku));
+//   const missingSkus = missing.map((m) => m.sku);
+
+//   // If you want to upsert missing SKUs instead of skipping, you can set allowUpsert=true.
+//   // We'll build two categories: updatesForExisting, updatesForUpsert
+//   const updatesForExisting = toUpdate;
+//   const updatesForUpsert = allowUpsert ? missing : [];
+
+//   // 5) Build bulk operations (for existing and possibly upserts)
+//   const buildOp = (u, upsert = false) => ({
+//     updateOne: {
+//       filter: { sku: u.sku },
+//       update: {
+//         $set: {
+//           quantity: u.quantity,
+//           status: u.quantity > 0 ? "in-stock" : "out-of-stock",
+//         },
+//       },
+//       upsert,
+//     },
+//   });
+
+//   const ops = [
+//     ...updatesForExisting.map((u) => buildOp(u, false)),
+//     ...updatesForUpsert.map((u) => buildOp(u, true)),
+//   ];
+
+//   if (ops.length === 0) {
+//     console.warn(
+//       "No valid updates to apply (either no valid input or none of the SKUs exist)."
+//     );
+//     return {
+//       received: updates.length,
+//       deduped: deduped.length,
+//       existing: existingSkus.length,
+//       updated: 0,
+//       missing: missingSkus.length,
+//       missingSkus,
+//       failed: 0,
+//       failedSkus: [],
+//     };
+//   }
+
+//   // 6) Execute in chunks with detailed logging
+//   let totalMatched = 0;
+//   let totalModified = 0;
+//   let totalUpserted = 0;
+//   let totalFailed = 0;
+//   const failedSkus = [];
+
+//   for (let i = 0; i < ops.length; i += chunkSize) {
+//     const chunk = ops.slice(i, i + chunkSize);
+//     const chunkSkus = chunk.map((op) => op.updateOne.filter.sku);
+//     console.log(`📦 All SKUs in this chunk: ${chunkSkus.join(", ")}`);
+
+//     try {
+//       const result = await Product.bulkWrite(chunk, { ordered: false });
+
+//       // normalize variations in result fields across driver versions
+//       const matched = result.matchedCount ?? result.nMatched ?? 0;
+//       const modified = result.modifiedCount ?? result.nModified ?? 0;
+//       const upserted = result.upsertedCount ?? 0;
+
+//       totalMatched += matched;
+//       totalModified += modified;
+//       totalUpserted += upserted;
+
+//       // Log what we can
+//       console.log(
+//         `✅ Chunk ${
+//           Math.floor(i / chunkSize) + 1
+//         }: matched ${matched}, updated ${modified}, upserted ${upserted}`
+//       );
+
+//       // If the result contains writeErrors in any driver, try to capture:
+//       if (result.writeErrors && result.writeErrors.length > 0) {
+//         totalFailed += result.writeErrors.length;
+//         result.writeErrors.forEach((we) => {
+//           // best effort: collect the operation index / opcode if present
+//           const idx = we.index;
+//           const sku = chunk[idx]?.updateOne?.filter?.sku;
+//           if (sku) failedSkus.push(sku);
+//           console.error(
+//             `❌ writeError for SKU ${sku ?? "(unknown)"}:`,
+//             we.errmsg || we.toString()
+//           );
+//         });
+//       }
+//     } catch (err) {
+//       // A chunk-level failure — log and mark all SKUs in chunk as failed
+//       totalFailed += chunk.length;
+//       failedSkus.push(...chunkSkus);
+//       console.error(
+//         `❌ Chunk ${Math.floor(i / chunkSize) + 1} failed. ${
+//           chunk.length
+//         } updates skipped. SKUs: ${chunkSkus.join(", ")}`,
+//         err && err.message ? err.message : err
+//       );
+//       // continue processing next chunks
+//     }
+//   }
+
+//   // Summary logs and return object
+//   console.log(`Processed ${ops.length} bulk operations total.`);
+//   if (missingSkus.length > 0) {
+//     console.warn(
+//       `⚠️ ${
+//         missingSkus.length
+//       } SKUs not found in DB (skipped unless allowUpsert=true): ${missingSkus.join(
+//         ", "
+//       )}`
+//     );
+//   }
+//   if (totalFailed > 0) {
+//     console.warn(
+//       `⚠️ ${totalFailed} updates failed. Affected SKUs: ${failedSkus.join(
+//         ", "
+//       )}`
+//     );
+//   }
+
+//   return {
+//     received: updates.length,
+//     deduped: deduped.length,
+//     existing: existingSkus.length,
+//     operations: ops.length,
+//     matched: totalMatched,
+//     modified: totalModified,
+//     upserted: totalUpserted,
+//     missing: missingSkus.length,
+//     missingSkus,
+//     failed: totalFailed,
+//     failedSkus,
+//   };
+// };
+
+// module.exports.updateQuantitiesService = async (updates) => {
+//   if (!Array.isArray(updates)) {
+//     throw new Error("Updates should be an array.");
+//   }
+
+//   if (updates.length === 0) {
+//     console.warn("No updates provided.");
+//     return;
+//   }
+
+//   console.log(`📥 Total updates received: ${updates.length}`);
+
+//   // Check for specific SKUs in incoming updates
+//   const specialSkus = ["MSF24", "AC13INV/G", "FFB8259SBS", "LED32HHL"];
+//   const foundSpecials = updates.filter((u) => specialSkus.includes(u.sku));
+
+//   if (foundSpecials.length > 0) {
+//     console.log("🚨 Special SKUs detected in update payload:", foundSpecials.map(s => `${s.sku}(qty:${s.quantity})`));
+//   } else {
+//     console.log("❌ No special SKUs found in incoming updates");
+//   }
+
+//   const latestUpdates = updates.reduce((map, update) => {
+//     if (update.sku && typeof update.quantity === "number") {
+//       map.set(update.sku, update);
+//     }
+//     return map;
+//   }, new Map());
+
+//   console.log(`🔄 After deduplication: ${latestUpdates.size} unique updates`);
+
+//   // Check if special SKUs survived deduplication
+//   const survivedSpecials = Array.from(latestUpdates.keys()).filter(sku => specialSkus.includes(sku));
+//   if (survivedSpecials.length > 0) {
+//     console.log("✅ Special SKUs after deduplication:", survivedSpecials);
+//   } else {
+//     console.log("❌ No special SKUs found after deduplication");
+//   }
+
+//   const bulkOperations = Array.from(latestUpdates.values()).map((update) => ({
+//     updateOne: {
+//       filter: { sku: update.sku },
+//       update: {
+//         $set: {
+//           quantity: update.quantity,
+//           status: update.quantity > 0 ? "in-stock" : "out-of-stock",
+//         },
+//       },
+//       upsert: false,
+//     },
+//   }));
+
+//   if (bulkOperations.length === 0) {
+//     console.warn("No valid updates found.");
+//     return;
+//   }
+
+//   // Break into smaller chunks to avoid Mongo write lock issues
+//   const chunkSize = 100; // tweak based on DB performance
+//   let totalProcessed = 0;
+//   let totalFailed = 0;
+//   const failedSkus = [];
+
+//   for (let i = 0; i < bulkOperations.length; i += chunkSize) {
+//     const chunk = bulkOperations.slice(i, i + chunkSize);
+//     const chunkSkus = chunk.map((op) => op.updateOne.filter.sku);
+
+//     // Check if any special SKUs are in this chunk
+//     const specialsInChunk = chunkSkus.filter(sku => specialSkus.includes(sku));
+
+//     if (specialsInChunk.length > 0) {
+//       console.log(`🚨 CHUNK ${Math.floor(i / chunkSize) + 1} contains special SKUs: ${specialsInChunk.join(", ")}`);
+//       console.log(`📦 All SKUs in this chunk: ${chunkSkus.join(", ")}`);
+//     } else {
+//       console.log(`📦 Chunk ${Math.floor(i / chunkSize) + 1}: ${chunk.length} items (no special SKUs)`);
+//     }
+
+//     try {
+//       const result = await Product.bulkWrite(chunk, { ordered: false });
+
+//       const successCount = result.nModified || result.modifiedCount || 0;
+//       const matchedCount = result.nMatched || result.matchedCount || 0;
+//       const upsertedCount = result.upsertedCount || 0;
+
+//       totalProcessed += successCount;
+
+//       console.log(
+//         `✅ Chunk ${
+//           Math.floor(i / chunkSize) + 1
+//         }: matched ${matchedCount}, updated ${successCount}, upserted ${upsertedCount}`
+//       );
+//     } catch (err) {
+//       totalFailed += chunk.length;
+//       failedSkus.push(...chunkSkus);
+
+//       console.error(
+//         `❌ Chunk ${Math.floor(i / chunkSize) + 1} failed. ${
+//           chunk.length
+//         } updates skipped. SKUs: ${chunkSkus.join(", ")}`
+//       );
+//     }
+//   }
+
+//   console.log(`Processed ${bulkOperations.length} updates total.`);
+//   if (totalFailed > 0) {
+//     console.warn(
+//       `⚠️ ${totalFailed} updates failed. Affected SKUs: ${failedSkus.join(
+//         ", "
+//       )}`
+//     );
+//   }
+// };
 
 exports.getFilteredPaginatedProductsService = async (query) => {
   try {
