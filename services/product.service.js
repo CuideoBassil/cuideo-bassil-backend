@@ -319,21 +319,6 @@ exports.syncProductIdsWithCategoriesService = async () => {
           { $set: { products: finalProductIds } }
         );
       }
-
-      // Logging
-      if (productsToAdd.length > 0 && productsToRemove.length > 0) {
-        console.log(
-          `Category ${category.parent} updated. Added: ${productsToAdd.length}, removed: ${productsToRemove.length}, total: ${finalProductIds.length}`
-        );
-      } else if (productsToAdd.length > 0) {
-        console.log(
-          `Category ${category.parent} updated. Added: ${productsToAdd.length}, total: ${finalProductIds.length}`
-        );
-      } else if (productsToRemove.length > 0) {
-        console.log(
-          `Category ${category.parent} updated. Removed: ${productsToRemove.length}, total: ${finalProductIds.length}`
-        );
-      }
     }
 
     console.log("✅ Product IDs in all categories synchronized.");
@@ -466,317 +451,6 @@ module.exports.updateQuantitiesService = async (updates) => {
   console.log(`✅ Updated ${bulkOperations.length} items in DB.`);
 };
 
-// Optimized updateQuantitiesService
-// module.exports.updateQuantitiesService = async (
-//   updates,
-//   { chunkSize = 100, allowUpsert = false } = {}
-// ) => {
-//   if (!Array.isArray(updates)) {
-//     throw new Error("Updates should be an array.");
-//   }
-//   if (updates.length === 0) {
-//     console.warn("No updates provided.");
-//     return {
-//       received: 0,
-//       deduped: 0,
-//       existing: 0,
-//       updated: 0,
-//       missing: 0,
-//       failed: 0,
-//       missingSkus: [],
-//       failedSkus: [],
-//     };
-//   }
-
-//   // 1) Normalize and validate input, keep index for debugging
-//   const normalized = updates
-//     .map((u, idx) => {
-//       const skuRaw = (u && (u.sku ?? u.SKU ?? u.Sku)) || "";
-//       const sku =
-//         typeof skuRaw === "string" ? skuRaw.trim().toUpperCase() : undefined;
-//       const quantity =
-//         typeof u.quantity === "number" ? u.quantity : Number(u.quantity) || NaN;
-//       return { origIndex: idx, raw: u, sku, quantity };
-//     })
-//     .filter((u) => u.sku && Number.isFinite(u.quantity));
-
-//   // 2) Deduplicate by SKU (last wins)
-//   const map = new Map();
-//   for (const u of normalized) map.set(u.sku, u);
-//   const deduped = Array.from(map.values());
-
-//   // 3) Optional: log special SKUs (using normalized comparison)
-//   const specialSkus = ["MSF24", "AC13INV/G", "FFB8259SBS", "LED32HHL"].map(
-//     (s) => s.trim().toUpperCase()
-//   );
-//   const foundSpecials = deduped.filter((u) => specialSkus.includes(u.sku));
-//   if (foundSpecials.length > 0) {
-//     console.log(
-//       "🚨 Special SKUs detected in update payload:",
-//       foundSpecials.map((s) => ({ sku: s.sku, quantity: s.quantity }))
-//     );
-//   }
-
-//   // 4) Pre-query DB to know which SKUs exist
-//   const allSkus = deduped.map((d) => d.sku);
-//   // Using Product.find + distinct is efficient and tells which SKUs are present
-//   const existingSkus = await Product.find({ sku: { $in: allSkus } }).distinct(
-//     "sku"
-//   );
-//   const existingSet = new Set(
-//     existingSkus.map((s) => String(s).trim().toUpperCase())
-//   );
-
-//   const toUpdate = deduped.filter((d) => existingSet.has(d.sku));
-//   const missing = deduped.filter((d) => !existingSet.has(d.sku));
-//   const missingSkus = missing.map((m) => m.sku);
-
-//   // If you want to upsert missing SKUs instead of skipping, you can set allowUpsert=true.
-//   // We'll build two categories: updatesForExisting, updatesForUpsert
-//   const updatesForExisting = toUpdate;
-//   const updatesForUpsert = allowUpsert ? missing : [];
-
-//   // 5) Build bulk operations (for existing and possibly upserts)
-//   const buildOp = (u, upsert = false) => ({
-//     updateOne: {
-//       filter: { sku: u.sku },
-//       update: {
-//         $set: {
-//           quantity: u.quantity,
-//           status: u.quantity > 0 ? "in-stock" : "out-of-stock",
-//         },
-//       },
-//       upsert,
-//     },
-//   });
-
-//   const ops = [
-//     ...updatesForExisting.map((u) => buildOp(u, false)),
-//     ...updatesForUpsert.map((u) => buildOp(u, true)),
-//   ];
-
-//   if (ops.length === 0) {
-//     console.warn(
-//       "No valid updates to apply (either no valid input or none of the SKUs exist)."
-//     );
-//     return {
-//       received: updates.length,
-//       deduped: deduped.length,
-//       existing: existingSkus.length,
-//       updated: 0,
-//       missing: missingSkus.length,
-//       missingSkus,
-//       failed: 0,
-//       failedSkus: [],
-//     };
-//   }
-
-//   // 6) Execute in chunks with detailed logging
-//   let totalMatched = 0;
-//   let totalModified = 0;
-//   let totalUpserted = 0;
-//   let totalFailed = 0;
-//   const failedSkus = [];
-
-//   for (let i = 0; i < ops.length; i += chunkSize) {
-//     const chunk = ops.slice(i, i + chunkSize);
-//     const chunkSkus = chunk.map((op) => op.updateOne.filter.sku);
-//     console.log(`📦 All SKUs in this chunk: ${chunkSkus.join(", ")}`);
-
-//     try {
-//       const result = await Product.bulkWrite(chunk, { ordered: false });
-
-//       // normalize variations in result fields across driver versions
-//       const matched = result.matchedCount ?? result.nMatched ?? 0;
-//       const modified = result.modifiedCount ?? result.nModified ?? 0;
-//       const upserted = result.upsertedCount ?? 0;
-
-//       totalMatched += matched;
-//       totalModified += modified;
-//       totalUpserted += upserted;
-
-//       // Log what we can
-//       console.log(
-//         `✅ Chunk ${
-//           Math.floor(i / chunkSize) + 1
-//         }: matched ${matched}, updated ${modified}, upserted ${upserted}`
-//       );
-
-//       // If the result contains writeErrors in any driver, try to capture:
-//       if (result.writeErrors && result.writeErrors.length > 0) {
-//         totalFailed += result.writeErrors.length;
-//         result.writeErrors.forEach((we) => {
-//           // best effort: collect the operation index / opcode if present
-//           const idx = we.index;
-//           const sku = chunk[idx]?.updateOne?.filter?.sku;
-//           if (sku) failedSkus.push(sku);
-//           console.error(
-//             `❌ writeError for SKU ${sku ?? "(unknown)"}:`,
-//             we.errmsg || we.toString()
-//           );
-//         });
-//       }
-//     } catch (err) {
-//       // A chunk-level failure — log and mark all SKUs in chunk as failed
-//       totalFailed += chunk.length;
-//       failedSkus.push(...chunkSkus);
-//       console.error(
-//         `❌ Chunk ${Math.floor(i / chunkSize) + 1} failed. ${
-//           chunk.length
-//         } updates skipped. SKUs: ${chunkSkus.join(", ")}`,
-//         err && err.message ? err.message : err
-//       );
-//       // continue processing next chunks
-//     }
-//   }
-
-//   // Summary logs and return object
-//   console.log(`Processed ${ops.length} bulk operations total.`);
-//   if (missingSkus.length > 0) {
-//     console.warn(
-//       `⚠️ ${
-//         missingSkus.length
-//       } SKUs not found in DB (skipped unless allowUpsert=true): ${missingSkus.join(
-//         ", "
-//       )}`
-//     );
-//   }
-//   if (totalFailed > 0) {
-//     console.warn(
-//       `⚠️ ${totalFailed} updates failed. Affected SKUs: ${failedSkus.join(
-//         ", "
-//       )}`
-//     );
-//   }
-
-//   return {
-//     received: updates.length,
-//     deduped: deduped.length,
-//     existing: existingSkus.length,
-//     operations: ops.length,
-//     matched: totalMatched,
-//     modified: totalModified,
-//     upserted: totalUpserted,
-//     missing: missingSkus.length,
-//     missingSkus,
-//     failed: totalFailed,
-//     failedSkus,
-//   };
-// };
-
-// module.exports.updateQuantitiesService = async (updates) => {
-//   if (!Array.isArray(updates)) {
-//     throw new Error("Updates should be an array.");
-//   }
-
-//   if (updates.length === 0) {
-//     console.warn("No updates provided.");
-//     return;
-//   }
-
-//   console.log(`📥 Total updates received: ${updates.length}`);
-
-//   // Check for specific SKUs in incoming updates
-//   const specialSkus = ["MSF24", "AC13INV/G", "FFB8259SBS", "LED32HHL"];
-//   const foundSpecials = updates.filter((u) => specialSkus.includes(u.sku));
-
-//   if (foundSpecials.length > 0) {
-//     console.log("🚨 Special SKUs detected in update payload:", foundSpecials.map(s => `${s.sku}(qty:${s.quantity})`));
-//   } else {
-//     console.log("❌ No special SKUs found in incoming updates");
-//   }
-
-//   const latestUpdates = updates.reduce((map, update) => {
-//     if (update.sku && typeof update.quantity === "number") {
-//       map.set(update.sku, update);
-//     }
-//     return map;
-//   }, new Map());
-
-//   console.log(`🔄 After deduplication: ${latestUpdates.size} unique updates`);
-
-//   // Check if special SKUs survived deduplication
-//   const survivedSpecials = Array.from(latestUpdates.keys()).filter(sku => specialSkus.includes(sku));
-//   if (survivedSpecials.length > 0) {
-//     console.log("✅ Special SKUs after deduplication:", survivedSpecials);
-//   } else {
-//     console.log("❌ No special SKUs found after deduplication");
-//   }
-
-//   const bulkOperations = Array.from(latestUpdates.values()).map((update) => ({
-//     updateOne: {
-//       filter: { sku: update.sku },
-//       update: {
-//         $set: {
-//           quantity: update.quantity,
-//           status: update.quantity > 0 ? "in-stock" : "out-of-stock",
-//         },
-//       },
-//       upsert: false,
-//     },
-//   }));
-
-//   if (bulkOperations.length === 0) {
-//     console.warn("No valid updates found.");
-//     return;
-//   }
-
-//   // Break into smaller chunks to avoid Mongo write lock issues
-//   const chunkSize = 100; // tweak based on DB performance
-//   let totalProcessed = 0;
-//   let totalFailed = 0;
-//   const failedSkus = [];
-
-//   for (let i = 0; i < bulkOperations.length; i += chunkSize) {
-//     const chunk = bulkOperations.slice(i, i + chunkSize);
-//     const chunkSkus = chunk.map((op) => op.updateOne.filter.sku);
-
-//     // Check if any special SKUs are in this chunk
-//     const specialsInChunk = chunkSkus.filter(sku => specialSkus.includes(sku));
-
-//     if (specialsInChunk.length > 0) {
-//       console.log(`🚨 CHUNK ${Math.floor(i / chunkSize) + 1} contains special SKUs: ${specialsInChunk.join(", ")}`);
-//       console.log(`📦 All SKUs in this chunk: ${chunkSkus.join(", ")}`);
-//     } else {
-//       console.log(`📦 Chunk ${Math.floor(i / chunkSize) + 1}: ${chunk.length} items (no special SKUs)`);
-//     }
-
-//     try {
-//       const result = await Product.bulkWrite(chunk, { ordered: false });
-
-//       const successCount = result.nModified || result.modifiedCount || 0;
-//       const matchedCount = result.nMatched || result.matchedCount || 0;
-//       const upsertedCount = result.upsertedCount || 0;
-
-//       totalProcessed += successCount;
-
-//       console.log(
-//         `✅ Chunk ${
-//           Math.floor(i / chunkSize) + 1
-//         }: matched ${matchedCount}, updated ${successCount}, upserted ${upsertedCount}`
-//       );
-//     } catch (err) {
-//       totalFailed += chunk.length;
-//       failedSkus.push(...chunkSkus);
-
-//       console.error(
-//         `❌ Chunk ${Math.floor(i / chunkSize) + 1} failed. ${
-//           chunk.length
-//         } updates skipped. SKUs: ${chunkSkus.join(", ")}`
-//       );
-//     }
-//   }
-
-//   console.log(`Processed ${bulkOperations.length} updates total.`);
-//   if (totalFailed > 0) {
-//     console.warn(
-//       `⚠️ ${totalFailed} updates failed. Affected SKUs: ${failedSkus.join(
-//         ", "
-//       )}`
-//     );
-//   }
-// };
-
 exports.getFilteredPaginatedProductsService = async (query) => {
   try {
     const {
@@ -791,171 +465,144 @@ exports.getFilteredPaginatedProductsService = async (query) => {
       sortBy,
     } = query;
 
-    const filter = {};
-    const sortOptions = {};
+    const skipNum = Math.max(parseInt(skip, 10) || 0, 0);
+    const takeNum = Math.min(Math.max(parseInt(take, 10) || 10, 1), 100);
 
-    // Individual filters
+    // Build match stage
+    const matchStage = {};
+
     if (brand) {
-      filter["brand.name"] = new RegExp(`^${brand}$`, "i");
+      const brandValue = Array.isArray(brand) ? brand[0] : brand;
+      matchStage["brand.name"] = new RegExp(
+        `^${brandValue.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`,
+        "i"
+      );
     }
     if (category) {
-      filter["category.name"] = new RegExp(`^${category}$`, "i");
+      const categoryValue = Array.isArray(category) ? category[0] : category;
+      matchStage["category.name"] = new RegExp(
+        `^${categoryValue.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`,
+        "i"
+      );
     }
     if (productType) {
-      filter["productType.name"] = new RegExp(`^${productType}$`, "i");
+      const productTypeValue = Array.isArray(productType)
+        ? productType[0]
+        : productType;
+      matchStage["productType.name"] = new RegExp(
+        `^${productTypeValue.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`,
+        "i"
+      );
     }
     if (color) {
-      filter["color.name"] = new RegExp(`^${color}$`, "i");
+      const colorValue = Array.isArray(color) ? color[0] : color;
+      matchStage["color.name"] = new RegExp(
+        `^${colorValue.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`,
+        "i"
+      );
     }
     if (status) {
-      filter["status"] = status;
+      matchStage["status"] = status;
     }
 
-    // Global search across multiple text fields (excluding price and discount)
     if (search) {
-      filter.$or = [
-        { title: { $regex: new RegExp(search, "i") } },
-        { "brand.name": { $regex: new RegExp(search, "i") } },
-        { "category.name": { $regex: new RegExp(search, "i") } },
-        { "color.name": { $regex: new RegExp(search, "i") } },
-        { "color.code": { $regex: new RegExp(search, "i") } },
-        { "productType.name": { $regex: new RegExp(search, "i") } },
-        { description: { $regex: new RegExp(search, "i") } },
-        { additionalInformation: { $regex: new RegExp(search, "i") } },
-        { tags: { $regex: new RegExp(search, "i") } },
-        { sku: { $regex: new RegExp(search, "i") } },
-        { unit: { $regex: new RegExp(search, "i") } },
+      const searchValue = Array.isArray(search) ? search[0] : search;
+      const searchRegex = new RegExp(
+        searchValue.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+        "i"
+      );
+      matchStage.$or = [
+        { title: searchRegex },
+        { "brand.name": searchRegex },
+        { "category.name": searchRegex },
+        { "color.name": searchRegex },
+        { "color.code": searchRegex },
+        { "productType.name": searchRegex },
+        { description: searchRegex },
+        { additionalInformation: searchRegex },
+        { tags: searchRegex },
+        { sku: searchRegex },
+        { unit: searchRegex },
       ];
     }
 
-    // Determine the sorting options
+    // Build sort stage
+    let sortStage;
     if (category) {
-      // If category is selected, sort by brand name ascending
-      sortOptions["brand.name"] = 1;
+      sortStage = {
+        "brand.name": 1,
+        title: 1,
+        _id: 1,
+      };
     } else if (sortBy) {
       switch (sortBy.toUpperCase()) {
         case "LTH":
-          sortOptions.price = 1;
+          sortStage = {
+            price: 1,
+            title: 1,
+            _id: 1,
+          };
           break;
         case "HTL":
-          sortOptions.price = -1;
+          sortStage = {
+            price: -1,
+            title: 1,
+            _id: 1,
+          };
           break;
         default:
-          sortOptions.createdAt = -1;
+          sortStage = {
+            createdAt: -1,
+            title: 1,
+            _id: 1,
+          };
       }
     } else {
-      sortOptions.createdAt = -1;
+      sortStage = {
+        createdAt: -1,
+        title: 1,
+        _id: 1,
+      };
     }
 
-    // Fetch the products with pagination and sorting
-    const products = await Product.find(filter)
-      .sort(sortOptions)
-      .skip(parseInt(skip, 10))
-      .limit(parseInt(take, 10))
-      .populate("reviews");
+    // Use aggregation pipeline for more reliable pagination
+    const pipeline = [
+      { $match: matchStage },
+      { $sort: sortStage },
+      {
+        $facet: {
+          products: [
+            { $skip: skipNum },
+            { $limit: takeNum },
+            {
+              $lookup: {
+                from: "reviews",
+                localField: "reviews",
+                foreignField: "_id",
+                as: "reviews",
+              },
+            },
+          ],
+          totalCount: [{ $count: "count" }],
+        },
+      },
+    ];
 
-    // Count the total number of products matching filters
-    const totalCount = await Product.countDocuments(filter);
+    const [result] = await Product.aggregate(pipeline);
+    const products = result.products || [];
+    const totalCount = result.totalCount[0]?.count || 0;
 
     return {
       products,
       totalCount,
+      skip: skipNum,
+      take: takeNum,
+      totalPages: Math.ceil(totalCount / takeNum),
+      hasNextPage: skipNum + takeNum < totalCount,
+      hasPrevPage: skipNum > 0,
     };
   } catch (error) {
     console.error("Error in getFilteredPaginatedProductsService:", error);
     throw new Error("Failed to retrieve products.");
   }
 };
-
-// exports.getFilteredPaginatedProductsService = async (query) => {
-//   try {
-//     // Parse pagination params safely
-//     const skip = Math.max(parseInt(query.skip, 10) || 0, 0);
-//     const take = Math.min(parseInt(query.take, 10) || 10, 100); // cap page size
-
-//     const { brand, category, productType, color, search, status, sortBy } =
-//       query;
-
-//     const filter = {};
-//     const sortOptions = {};
-
-//     // -------------------------
-//     // 1️⃣ Apply filters
-//     // -------------------------
-//     if (brand) filter["brand.name"] = new RegExp(`^${brand}$`, "i");
-//     if (category) filter["category.name"] = new RegExp(`^${category}$`, "i");
-//     if (productType)
-//       filter["productType.name"] = new RegExp(`^${productType}$`, "i");
-//     if (color) filter["color.name"] = new RegExp(`^${color}$`, "i");
-//     if (status) filter.status = status;
-
-//     // -------------------------
-//     // 2️⃣ Global search
-//     // -------------------------
-//     if (search) {
-//       const searchRegex = new RegExp(search, "i");
-//       filter.$or = [
-//         { title: searchRegex },
-//         { "brand.name": searchRegex },
-//         { "category.name": searchRegex },
-//         { "color.name": searchRegex },
-//         { "color.code": searchRegex },
-//         { "productType.name": searchRegex },
-//         { description: searchRegex },
-//         { additionalInformation: searchRegex },
-//         { tags: searchRegex },
-//         { sku: searchRegex },
-//         { unit: searchRegex },
-//       ];
-//     }
-
-//     // -------------------------
-//     // 3️⃣ Sorting (stable)
-//     // -------------------------
-//     if (category) {
-//       sortOptions["brand.name"] = 1;
-//       sortOptions["_id"] = 1; // ensure stability
-//     } else if (sortBy) {
-//       switch (sortBy.toUpperCase()) {
-//         case "LTH":
-//           sortOptions.price = 1;
-//           sortOptions["_id"] = 1;
-//           break;
-//         case "HTL":
-//           sortOptions.price = -1;
-//           sortOptions["_id"] = 1;
-//           break;
-//         default:
-//           sortOptions.createdAt = -1;
-//           sortOptions["_id"] = 1;
-//       }
-//     } else {
-//       sortOptions.createdAt = -1;
-//       sortOptions["_id"] = 1;
-//     }
-
-//     // -------------------------
-//     // 4️⃣ Query + Count (parallel)
-//     // -------------------------
-//     const [products, totalCount] = await Promise.all([
-//       Product.find(filter)
-//         .sort(sortOptions)
-//         .skip(skip)
-//         .limit(take)
-//         .populate("reviews")
-//         .lean(),
-//       Product.countDocuments(filter),
-//     ]);
-
-//     return {
-//       products,
-//       totalCount,
-//       skip,
-//       take,
-//       totalPages: Math.ceil(totalCount / take),
-//     };
-//   } catch (error) {
-//     console.error("Error in getFilteredPaginatedProductsService:", error);
-//     throw new Error("Failed to retrieve products.");
-//   }
-// };
