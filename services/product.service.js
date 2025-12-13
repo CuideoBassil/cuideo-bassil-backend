@@ -63,117 +63,170 @@ exports.addAllProductService = async (data) => {
 
 // Get all products
 exports.getAllProductsService = async () => {
-  return await Product.find({ status: "in-stock" }).populate("reviews");
+  return await Product.find({ status: "in-stock" })
+    .populate("reviews")
+    .lean()
+    .exec();
 };
 
 // Get products by type with filtering
 exports.getProductTypeService = async (req) => {
   const { type } = req.params;
   const query = req.query;
-  let filter = { productType: type, status: "in-stock" };
+  let filter = { "productType.name": type, status: "in-stock" };
 
   if (query.new === "true") {
     return Product.find(filter)
       .sort({ createdAt: -1 })
       .limit(8)
-      .populate("reviews");
+      .populate("reviews")
+      .lean()
+      .exec();
   } else if (query.featured === "true") {
     filter.featured = true;
   } else if (query.topSellers === "true") {
     return Product.find(filter)
       .sort({ sellCount: -1 })
       .limit(8)
-      .populate("reviews");
+      .populate("reviews")
+      .lean()
+      .exec();
   }
 
-  return Product.find(filter).populate("reviews");
+  return Product.find(filter).populate("reviews").lean().exec();
 };
 
 // Get products by types with pagination
 exports.getAllProductsWithTypesService = async (req) => {
   const { type } = req.params;
-  // let types = req.params.type ? req.params.type.split(",") : [];
-  const skip = parseInt(req.params.skip, 10) || 0;
-  const take = parseInt(req.params.take, 10) || 10;
+  const skip = Math.max(parseInt(req.params.skip, 10) || 0, 0);
+  const take = Math.min(Math.max(parseInt(req.params.take, 10) || 10, 1), 100);
 
   const types = Array.isArray(type) ? type : [];
   const query = types.includes("All")
     ? { status: "in-stock" }
-    : { productType: { name: { $in: types } }, status: "in-stock" };
+    : { "productType.name": { $in: types }, status: "in-stock" };
 
   return Product.find(query)
     .sort({ createdAt: -1 })
-    .skip(skip >= 0 ? skip : 0)
-    .limit(take >= 0 ? take : 10)
-    .populate("reviews");
+    .skip(skip)
+    .limit(take)
+    .populate("reviews")
+    .lean()
+    .exec();
 };
 
 // Get products with dynamic filtering
 exports.getProductsWithDynamicFilterService = async (req) => {
   const { skip, take, ...filters } = req.query;
   filters.status = "in-stock";
+  const skipNum = Math.max(parseInt(skip, 10) || 0, 0);
+  const takeNum = Math.min(Math.max(parseInt(take, 10) || 10, 1), 100);
+
   return Product.find(filters)
     .sort({ createdAt: -1 })
-    .skip(parseInt(skip, 10) || 0)
-    .limit(parseInt(take, 10) || 10)
-    .populate("reviews");
+    .skip(skipNum)
+    .limit(takeNum)
+    .populate("reviews")
+    .lean()
+    .exec();
 };
 
 // Get offer timer product
 exports.getOfferTimerProductService = async (query) => {
   return Product.find({
-    productType: query,
+    "productType.name": query,
     status: "in-stock",
     "offerDate.endDate": { $gt: new Date() },
-  }).populate("reviews");
+  })
+    .populate("reviews")
+    .lean()
+    .exec();
 };
 
 // Get popular products by type
 exports.getPopularProductServiceByType = async (type) => {
-  return Product.find({ productType: type, status: "in-stock" })
-    .sort({ "reviews.length": -1 })
+  return Product.find({ "productType.name": type, status: "in-stock" })
+    .sort({ createdAt: -1 })
     .limit(8)
-    .populate("reviews");
+    .populate("reviews")
+    .lean()
+    .exec();
 };
 
 // Get top-rated products
 exports.getTopRatedProductService = async () => {
-  const products = await Product.find({
-    reviews: { $exists: true, $ne: [] },
-    status: "in-stock",
-  }).populate("reviews");
+  // Use aggregation to calculate ratings efficiently
+  const products = await Product.aggregate([
+    {
+      $match: {
+        reviews: { $exists: true, $not: { $size: 0 } },
+        status: "in-stock",
+      },
+    },
+    {
+      $lookup: {
+        from: "reviews",
+        localField: "reviews",
+        foreignField: "_id",
+        as: "reviewsData",
+      },
+    },
+    {
+      $addFields: {
+        averageRating: {
+          $avg: "$reviewsData.rating",
+        },
+        reviewCount: { $size: "$reviewsData" },
+      },
+    },
+    {
+      $match: {
+        reviewCount: { $gt: 0 },
+      },
+    },
+    {
+      $sort: {
+        averageRating: -1,
+        reviewCount: -1,
+      },
+    },
+    {
+      $limit: 10,
+    },
+    {
+      $project: {
+        reviewsData: 0, // Remove the temporary field
+      },
+    },
+  ]);
 
-  const topRatedProducts = products.map((product) => {
-    const totalRating = product.reviews.reduce(
-      (sum, review) => sum + review.rating,
-      0
-    );
-    const averageRating = totalRating / product.reviews.length;
-
-    return {
-      ...product.toObject(),
-      rating: averageRating,
-    };
-  });
-
-  topRatedProducts.sort((a, b) => b.rating - a.rating);
-
-  return topRatedProducts;
+  return products;
 };
 
 // Get product by ID
 exports.getProductService = async (id) => {
-  return Product.findOne({ _id: id }).populate("reviews");
+  return Product.findById(id).populate("reviews").exec();
 };
 
 // Get related products
 exports.getRelatedProductService = async (productId) => {
-  const currentProduct = await Product.findById(productId);
+  const currentProduct = await Product.findById(productId)
+    .select("category")
+    .lean();
+
+  if (!currentProduct) {
+    return [];
+  }
+
   return Product.find({
     "category.name": currentProduct.category.name,
     status: "in-stock",
     _id: { $ne: productId },
-  });
+  })
+    .limit(8)
+    .lean()
+    .exec();
 };
 
 // Update a product
@@ -237,21 +290,21 @@ exports.updateProductService = async (id, currProduct) => {
 
 // Get reviewed products
 exports.getReviewsProducts = async () => {
-  const products = await Product.find({
-    reviews: { $exists: true },
+  return Product.find({
+    reviews: { $exists: true, $not: { $size: 0 } },
     status: "in-stock",
-  }).populate("reviews");
-  // Filter out products where reviews array is empty
-  const filteredProducts = products.filter(
-    (product) => product.reviews.length > 0
-  );
-
-  return filteredProducts;
+  })
+    .populate("reviews")
+    .lean()
+    .exec();
 };
 
 // Get out-of-stock products
 exports.getStockOutProducts = async () => {
-  return Product.find({ status: "out-of-stock" }).sort({ createdAt: -1 });
+  return Product.find({ status: "out-of-stock" })
+    .sort({ createdAt: -1 })
+    .lean()
+    .exec();
 };
 
 // Delete a product
@@ -516,13 +569,10 @@ exports.getFilteredPaginatedProductsService = async (query) => {
         { "brand.name": searchRegex },
         { "category.name": searchRegex },
         { "color.name": searchRegex },
-        { "color.code": searchRegex },
         { "productType.name": searchRegex },
         { description: searchRegex },
-        { additionalInformation: searchRegex },
         { tags: searchRegex },
         { sku: searchRegex },
-        { unit: searchRegex },
       ];
     }
 
@@ -537,35 +587,19 @@ exports.getFilteredPaginatedProductsService = async (query) => {
     } else if (sortBy) {
       switch (sortBy.toUpperCase()) {
         case "LTH":
-          sortStage = {
-            price: 1,
-            title: 1,
-            _id: 1,
-          };
+          sortStage = { price: 1, title: 1, _id: 1 };
           break;
         case "HTL":
-          sortStage = {
-            price: -1,
-            title: 1,
-            _id: 1,
-          };
+          sortStage = { price: -1, title: 1, _id: 1 };
           break;
         default:
-          sortStage = {
-            createdAt: -1,
-            title: 1,
-            _id: 1,
-          };
+          sortStage = { createdAt: -1, title: 1, _id: 1 };
       }
     } else {
-      sortStage = {
-        createdAt: -1,
-        title: 1,
-        _id: 1,
-      };
+      sortStage = { createdAt: -1, title: 1, _id: 1 };
     }
 
-    // Use aggregation pipeline for more reliable pagination
+    // Use aggregation pipeline with optimized stages
     const pipeline = [
       { $match: matchStage },
       { $sort: sortStage },
@@ -588,7 +622,7 @@ exports.getFilteredPaginatedProductsService = async (query) => {
       },
     ];
 
-    const [result] = await Product.aggregate(pipeline);
+    const [result] = await Product.aggregate(pipeline).allowDiskUse(true);
     const products = result.products || [];
     const totalCount = result.totalCount[0]?.count || 0;
 

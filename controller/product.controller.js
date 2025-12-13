@@ -69,6 +69,10 @@ exports.addAllProducts = async (req, res, next) => {
 exports.getAllProducts = async (req, res, next) => {
   try {
     const result = await productServices.getAllProductsService();
+
+    // Set cache headers for better performance
+    res.set("Cache-Control", "public, max-age=300"); // 5 minutes
+
     res.status(200).json({
       success: true,
       data: result,
@@ -131,6 +135,10 @@ exports.getOfferTimerProducts = async (req, res, next) => {
     const result = await productServices.getOfferTimerProductService(
       req.query.type
     );
+
+    // Set cache headers - offers change less frequently
+    res.set("Cache-Control", "public, max-age=600"); // 10 minutes
+
     res.status(200).json({
       success: true,
       data: result,
@@ -159,6 +167,10 @@ exports.getPopularProductByType = async (req, res, next) => {
 exports.getTopRatedProducts = async (req, res, next) => {
   try {
     const result = await productServices.getTopRatedProductService();
+
+    // Top-rated products can be cached longer
+    res.set("Cache-Control", "public, max-age=1800"); // 30 minutes
+
     res.status(200).json({
       success: true,
       data: result,
@@ -295,6 +307,10 @@ exports.getFilteredPaginatedProducts = async (req, res) => {
     const products = await productServices.getFilteredPaginatedProductsService(
       req.query
     );
+
+    // Cache filtered results briefly
+    res.set("Cache-Control", "public, max-age=120"); // 2 minutes
+
     res.status(200).json(products);
   } catch (error) {
     console.error("Error fetching filtered paginated products:", error);

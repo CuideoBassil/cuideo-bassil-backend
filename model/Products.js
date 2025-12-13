@@ -47,6 +47,17 @@ const ProductSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Create indexes for optimized querying
+ProductSchema.index({ status: 1, createdAt: -1 });
+ProductSchema.index({ "productType.name": 1, status: 1 });
+ProductSchema.index({ "category.name": 1, status: 1 });
+ProductSchema.index({ "brand.name": 1, status: 1 });
+ProductSchema.index({ sku: 1 }, { unique: true });
+ProductSchema.index({ slug: 1 });
+ProductSchema.index({ title: "text", description: "text", tags: "text" });
+ProductSchema.index({ price: 1 });
+ProductSchema.index({ "offerDate.endDate": 1 });
+
 const Products = mongoose.model("Products", ProductSchema);
 
 module.exports = Products;
