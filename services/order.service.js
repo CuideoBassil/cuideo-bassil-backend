@@ -67,44 +67,45 @@ Please check the admin dashboard for more details.
 
 // Get all orders service
 exports.getOrdersService = async () => {
-  return await Order.find().populate("deliveryDistrict");
+  return await Order.find().populate("deliveryDistrict").lean();
 };
 
 // Get single order by ID service with product details enrichment
 exports.getOrderByIdService = async (id) => {
-  const order = await Order.findById(id).populate("deliveryDistrict");
+  const order = await Order.findById(id).populate("deliveryDistrict").lean();
   if (!order) {
     throw new ApiError(404, "Order not found");
   }
 
-  // Enrich each product with details from Products model
-  const detailedProducts = await Promise.all(
-    order.orderProducts.map(async (item) => {
-      const product = await Products.findOne({ sku: item.sku }).select(
-        "title brand.name color.name price discount"
-      );
-      if (!product) {
-        return { sku: item.sku, quantity: item.orderQuantity };
-      }
+  // Batch fetch all products by SKU in a single query instead of N+1
+  const skus = order.orderProducts.map((item) => item.sku);
+  const products = await Products.find({ sku: { $in: skus } })
+    .select("sku title brand.name color.name price discount")
+    .lean();
 
-      return {
-        sku: item.sku,
-        quantity: item.orderQuantity,
-        title: product.title,
-        brandName: product.brand?.name || null,
-        colorName: product.color?.name || null,
-        price: product.price,
-        discountedPrice:
-          product.discount && product.discount > 0
-            ? product.discount
-            : product.price,
-      };
-    })
-  );
+  const productMap = new Map(products.map((p) => [p.sku, p]));
 
-  // Return order with detailed products array
+  const detailedProducts = order.orderProducts.map((item) => {
+    const product = productMap.get(item.sku);
+    if (!product) {
+      return { sku: item.sku, quantity: item.orderQuantity };
+    }
+    return {
+      sku: item.sku,
+      quantity: item.orderQuantity,
+      title: product.title,
+      brandName: product.brand?.name || null,
+      colorName: product.color?.name || null,
+      price: product.price,
+      discountedPrice:
+        product.discount && product.discount > 0
+          ? product.discount
+          : product.price,
+    };
+  });
+
   return {
-    ...order.toObject(),
+    ...order,
     detailedProducts,
   };
 };

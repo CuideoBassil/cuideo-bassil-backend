@@ -84,7 +84,11 @@ module.exports.getOrderByUser = async (req, res, next) => {
     // today order amount
 
     // query for orders
-    const orders = await Order.find({ user: req.user._id }).sort({ _id: -1 });
+    const orders = await Order.find({ user: req.user._id })
+      .sort({ _id: -1 })
+      .skip(skip)
+      .limit(limits)
+      .lean();
 
     res.send({
       orders,
@@ -117,76 +121,59 @@ module.exports.getOrderById = async (req, res, next) => {
 // getDashboardAmount
 exports.getDashboardAmount = async (req, res, next) => {
   try {
-    const todayStart = dayjs().startOf("day");
-    const todayEnd = dayjs().endOf("day");
+    const todayStart = dayjs().startOf("day").toDate();
+    const todayEnd = dayjs().endOf("day").toDate();
+    const yesterdayStart = dayjs().subtract(1, "day").startOf("day").toDate();
+    const yesterdayEnd = dayjs().subtract(1, "day").endOf("day").toDate();
+    const monthStart = dayjs().startOf("month").toDate();
+    const monthEnd = dayjs().endOf("month").toDate();
 
-    const yesterdayStart = dayjs().subtract(1, "day").startOf("day");
-    const yesterdayEnd = dayjs().subtract(1, "day").endOf("day");
+    const [todayStats, yesterdayStats, monthlyStats, totalStats] =
+      await Promise.all([
+        Order.aggregate([
+          { $match: { createdAt: { $gte: todayStart, $lte: todayEnd } } },
+          {
+            $group: {
+              _id: "$paymentMethod",
+              total: { $sum: "$totalAmount" },
+            },
+          },
+        ]),
+        Order.aggregate([
+          {
+            $match: {
+              createdAt: { $gte: yesterdayStart, $lte: yesterdayEnd },
+            },
+          },
+          {
+            $group: {
+              _id: "$paymentMethod",
+              total: { $sum: "$totalAmount" },
+            },
+          },
+        ]),
+        Order.aggregate([
+          { $match: { createdAt: { $gte: monthStart, $lte: monthEnd } } },
+          { $group: { _id: null, total: { $sum: "$totalAmount" } } },
+        ]),
+        Order.aggregate([
+          { $group: { _id: null, total: { $sum: "$totalAmount" } } },
+        ]),
+      ]);
 
-    const monthStart = dayjs().startOf("month");
-    const monthEnd = dayjs().endOf("month");
-
-    const todayOrders = await Order.find({
-      createdAt: { $gte: todayStart.toDate(), $lte: todayEnd.toDate() },
-    });
-
-    let todayCashPaymentAmount = 0;
-    let todayCardPaymentAmount = 0;
-
-    todayOrders.forEach((order) => {
-      if (order.paymentMethod === "COD") {
-        todayCashPaymentAmount += order.totalAmount;
-      } else if (order.paymentMethod === "Card") {
-        todayCardPaymentAmount += order.totalAmount;
-      }
-    });
-
-    const yesterdayOrders = await Order.find({
-      createdAt: { $gte: yesterdayStart.toDate(), $lte: yesterdayEnd.toDate() },
-    });
-
-    let yesterDayCashPaymentAmount = 0;
-    let yesterDayCardPaymentAmount = 0;
-
-    yesterdayOrders.forEach((order) => {
-      if (order.paymentMethod === "COD") {
-        yesterDayCashPaymentAmount += order.totalAmount;
-      } else if (order.paymentMethod === "Card") {
-        yesterDayCardPaymentAmount += order.totalAmount;
-      }
-    });
-
-    const monthlyOrders = await Order.find({
-      createdAt: { $gte: monthStart.toDate(), $lte: monthEnd.toDate() },
-    });
-
-    const totalOrders = await Order.find();
-    const todayOrderAmount = todayOrders.reduce(
-      (total, order) => total + order.totalAmount,
-      0
-    );
-    const yesterdayOrderAmount = yesterdayOrders.reduce(
-      (total, order) => total + order.totalAmount,
-      0
-    );
-
-    const monthlyOrderAmount = monthlyOrders.reduce((total, order) => {
-      return total + order.totalAmount;
-    }, 0);
-    const totalOrderAmount = totalOrders.reduce(
-      (total, order) => total + order.totalAmount,
-      0
-    );
+    const getAmount = (stats, method) =>
+      stats.find((s) => s._id === method)?.total || 0;
+    const getTotal = (stats) => stats.reduce((sum, s) => sum + s.total, 0);
 
     res.status(200).send({
-      todayOrderAmount,
-      yesterdayOrderAmount,
-      monthlyOrderAmount,
-      totalOrderAmount,
-      todayCardPaymentAmount,
-      todayCashPaymentAmount,
-      yesterDayCardPaymentAmount,
-      yesterDayCashPaymentAmount,
+      todayOrderAmount: getTotal(todayStats),
+      yesterdayOrderAmount: getTotal(yesterdayStats),
+      monthlyOrderAmount: monthlyStats[0]?.total || 0,
+      totalOrderAmount: totalStats[0]?.total || 0,
+      todayCardPaymentAmount: getAmount(todayStats, "Card"),
+      todayCashPaymentAmount: getAmount(todayStats, "COD"),
+      yesterDayCardPaymentAmount: getAmount(yesterdayStats, "Card"),
+      yesterDayCashPaymentAmount: getAmount(yesterdayStats, "COD"),
     });
   } catch (error) {
     next(error);
@@ -271,6 +258,8 @@ exports.getDashboardRecentOrder = async (req, res, next) => {
     const orders = await Order.aggregate([
       { $match: queryObject },
       { $sort: { updatedAt: -1 } },
+      { $skip: skip },
+      { $limit: limits },
       {
         $project: {
           invoice: 1,

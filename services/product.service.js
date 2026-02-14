@@ -313,40 +313,39 @@ exports.deleteProduct = async (id) => {
 };
 exports.syncProductIdsWithCategoriesService = async () => {
   try {
-    // Fetch all categories without populating (we only need product IDs here)
-    const categories = await Category.find({}, { products: 1, parent: 1 });
+    const categories = await Category.find({}, { products: 1, parent: 1 }).lean();
+
+    // Fetch ALL existing product IDs in one query instead of checking one by one
+    const allProductIds = await Product.find({}, { _id: 1 }).lean();
+    const existingProductIds = new Set(allProductIds.map((p) => p._id.toString()));
 
     // Fetch product IDs grouped by category in a single query
     const productsByCategory = await Product.aggregate([
       {
         $group: {
-          _id: "$category.id", // group by category ID
-          productIds: { $addToSet: "$_id" }, // collect product IDs
+          _id: "$category.id",
+          productIds: { $addToSet: "$_id" },
         },
       },
     ]);
 
-    // Convert aggregation result to a map
     const categoryToProducts = new Map();
     for (const entry of productsByCategory) {
       categoryToProducts.set(entry._id?.toString(), entry.productIds);
     }
 
-    // Process each category
+    const bulkOps = [];
+
     for (const category of categories) {
       const currentProductIds = new Set(
         category.products.map((id) => id.toString())
       );
-      const validProductIds = new Set();
-      const productsToRemove = [];
-      const productsToAdd = [];
 
-      // Keep only valid products (exist in DB)
+      // Filter to only products that exist in DB (using the pre-fetched set)
+      const validProductIds = new Set();
       for (const productId of currentProductIds) {
-        if (await Product.exists({ _id: productId })) {
+        if (existingProductIds.has(productId)) {
           validProductIds.add(productId);
-        } else {
-          productsToRemove.push(productId);
         }
       }
 
@@ -356,27 +355,27 @@ exports.syncProductIdsWithCategoriesService = async () => {
       for (const productId of expectedProducts) {
         if (!validProductIds.has(productId.toString())) {
           validProductIds.add(productId.toString());
-          productsToAdd.push(productId);
         }
       }
 
-      // Update only if something changed
       const finalProductIds = Array.from(validProductIds);
-      if (
-        productsToAdd.length > 0 ||
-        productsToRemove.length > 0 ||
-        finalProductIds.length !== category.products.length
-      ) {
-        await Category.updateOne(
-          { _id: category._id },
-          { $set: { products: finalProductIds } }
-        );
+      if (finalProductIds.length !== category.products.length) {
+        bulkOps.push({
+          updateOne: {
+            filter: { _id: category._id },
+            update: { $set: { products: finalProductIds } },
+          },
+        });
       }
     }
 
-    console.log("✅ Product IDs in all categories synchronized.");
+    if (bulkOps.length > 0) {
+      await Category.bulkWrite(bulkOps);
+    }
+
+    console.log("Product IDs in all categories synchronized.");
   } catch (error) {
-    console.error("❌ Error synchronizing product IDs with categories:", error);
+    console.error("Error synchronizing product IDs with categories:", error);
     throw error;
   }
 };

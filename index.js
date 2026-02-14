@@ -39,8 +39,9 @@ const {
 
 // middleware
 app.use(cors());
-app.use(express.json());
-app.use(morgan("dev"));
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
 app.use(express.static(path.join(__dirname, "public")));
 
 // connect database
@@ -85,15 +86,42 @@ app.use((req, res, next) => {
 });
 
 cron.schedule("30 0 * * *", async () => {
-  console.log("Running the category check job...");
-  await syncProductIdsWithCategoriesService();
+  try {
+    console.log("Running the category check job...");
+    await syncProductIdsWithCategoriesService();
+  } catch (err) {
+    console.error("Category sync cron failed:", err.message);
+  }
 });
 
-cron.schedule("* 1 * * *", async () => {
-  console.log("Running the discount clearance job...");
-  await clearExpiredDiscountsService();
+cron.schedule("0 1 * * *", async () => {
+  try {
+    console.log("Running the discount clearance job...");
+    await clearExpiredDiscountsService();
+  } catch (err) {
+    console.error("Discount clearance cron failed:", err.message);
+  }
 });
 
-app.listen(PORT, () => console.log(`server running on port ${PORT}`));
+const server = app.listen(PORT, () => console.log(`server running on port ${PORT}`));
+
+// Graceful shutdown
+const gracefulShutdown = (signal) => {
+  console.log(`${signal} received. Shutting down gracefully...`);
+  server.close(() => {
+    const mongoose = require("mongoose");
+    mongoose.connection.close(false).then(() => {
+      console.log("MongoDB connection closed.");
+      process.exit(0);
+    });
+  });
+  setTimeout(() => {
+    console.error("Forced shutdown after timeout.");
+    process.exit(1);
+  }, 10000);
+};
+
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 
 module.exports = app;
