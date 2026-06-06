@@ -2,12 +2,25 @@ const express = require("express");
 const router = express.Router();
 // internal
 const productController = require("../controller/product.controller");
+const productImportController = require("../controller/productImport.controller");
+const excelUploader = require("../middleware/excelUploader");
 
 // add a product
 router.post("/add", productController.addProduct);
 
 // add all products
 router.post("/add-all", productController.addAllProducts);
+
+// download the Excel import template (dropdowns reflect current data)
+router.get("/import-template", productImportController.downloadProductTemplate);
+
+// batch import products from an Excel file (field name: "file")
+// ?mode=validate for a dry run, ?mode=commit (default) to save
+router.post(
+  "/import-excel",
+  excelUploader.single("file"),
+  productImportController.importProductsExcel
+);
 
 // get all products
 router.get("/all", productController.getAllProducts);
