@@ -159,7 +159,7 @@ const buildTemplateWorkbook = async () => {
     "Images:",
     "  - Always paste the FULL Cloudinary URL (https://res.cloudinary.com/...), not the public id.",
     "  - 'image' (main image) is OPTIONAL. If left blank, a placeholder is stored and you can upload the real image later on the product's edit page.",
-    "  - 'additional_images' takes several full URLs separated by | (pipe).",
+    "  - 'additional_images' takes several full URLs separated by a comma or | (pipe).",
     "",
     "Rules:",
     "  - Columns with a red header and a * are REQUIRED. Hover any header to read what it expects.",

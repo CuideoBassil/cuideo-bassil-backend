@@ -320,8 +320,8 @@ const PRODUCT_COLUMNS = [
     type: "urlList",
     width: 45,
     example:
-      "https://res.cloudinary.com/demo/image/upload/v1/products/a.jpg | https://res.cloudinary.com/demo/image/upload/v1/products/b.jpg",
-    note: "Optional. One or more full Cloudinary URLs separated by | (pipe).",
+      "https://res.cloudinary.com/demo/image/upload/v1/products/a.jpg, https://res.cloudinary.com/demo/image/upload/v1/products/b.jpg",
+    note: "Optional. One or more full Cloudinary URLs separated by a comma or | (pipe).",
   },
   {
     key: "discount",

@@ -60,6 +60,9 @@ const splitPipe = (s) =>
   String(s).split(/[|\n]/).map((x) => x.trim()).filter(Boolean);
 const splitCsv = (s) =>
   String(s).split(",").map((x) => x.trim()).filter(Boolean);
+// For image lists: accept comma, pipe, or newline as the separator.
+const splitUrlList = (s) =>
+  String(s).split(/[|,\n]/).map((x) => x.trim()).filter(Boolean);
 
 // Read a worksheet into [{ rowNumber, record }] using a column definition list.
 const parseSheet = (worksheet, columns) => {
@@ -358,7 +361,7 @@ const buildProductFromRow = (record, refs, errors) => {
 
   const additionalRaw = get("additional_images");
   if (additionalRaw) {
-    const urls = splitPipe(additionalRaw);
+    const urls = splitUrlList(additionalRaw);
     const bad = urls.filter((u) => !isHttpUrl(u));
     if (bad.length) errors.push(`additional_images contains ${bad.length} value(s) that are not valid URLs`);
     else product.additionalImages = urls;
